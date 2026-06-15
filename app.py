@@ -1,190 +1,150 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import io
+import plotly.graph_objects as go
 import os
 import datetime
 
-# লোগো চেক
+# ১. পেজ সেটিংস ও লোগো
 logo_path = "logo.png"
-if not os.path.exists(logo_path):
-    logo_path = "logo.jpg"
+if not os.path.exists(logo_path): logo_path = "logo.jpg"
 
-# ১. পেজ সেটিংস
-st.set_page_config(
-    page_title="Tele Sales Analytics Dashboard", 
-    layout="wide", 
-    page_icon=logo_path if os.path.exists(logo_path) else "📊"
-)
+st.set_page_config(page_title="Bigganbaksho AI Dashboard", layout="wide", page_icon="📊")
 
-# ২. কাস্টম CSS (ডিজাইন আরও টাইট এবং লোগো পজিশনিং)
+# ২. কাস্টম CSS (ছবিগুলোর মতো প্রফেশনাল লুক দিতে)
 st.markdown("""
     <style>
-    /* লোগো বামে সেট করা */
-    [data-testid="stHeader"] {
-        background-color: rgba(0,0,0,0);
-    }
-    .main-title { 
-        text-align: center; 
-        color: #FF6600; 
-        font-size: 50px; 
-        font-weight: 800; 
-        margin-top: -80px; 
-        margin-bottom: 5px;
-        line-height: 1;
-    }
-    .developer-text { 
-        text-align: center; 
-        font-style: italic; 
-        font-size: 16px; 
-        color: #555; 
-        margin-bottom: 5px;
-    }
-    .slogan-text { 
-        text-align: center; 
-        font-size: 24px; 
-        font-weight: 700; 
-        color: #000; 
-        margin-top: 0px; 
-        margin-bottom: 5px;
-    }
-    .vision-text { 
-        text-align: center; 
-        font-size: 16px; 
-        color: #666; 
-        margin-bottom: 10px; 
-    }
-    .stMetric { 
-        background-color: #ffffff; 
-        padding: 10px; 
-        border-radius: 8px; 
-        border: 1px solid #e0e0e0;
-        border-left: 5px solid #FF6600; 
-    }
+    .reportview-container { background: #F8F9FB; }
+    .metric-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; border-top: 5px solid #FF6600; }
+    .insight-box { background: #2D2E5F; color: white; padding: 20px; border-radius: 12px; margin: 10px 0px; }
+    .section-header { font-size: 22px; font-weight: bold; color: #1E1E1E; margin-bottom: 15px; padding-left: 5px; border-left: 5px solid #FF6600; }
+    .stTable { background: white; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# লোগো প্রদর্শন (Top-Left)
-if os.path.exists(logo_path):
-    st.image(logo_path, width=100)
-
-# টেক্সট সেকশন
-st.markdown('<div class="main-title">Tele Sales Analytics Dashboard</div>', unsafe_allow_html=True)
-st.markdown('<div class="developer-text">Web App Developed By-Shujoy Shaha</div>', unsafe_allow_html=True)
-st.markdown('<div class="slogan-text">ম্যানুয়েল কাজের দিন শেষ, বিজ্ঞানবাক্সে বাংলাদেশ</div>', unsafe_allow_html=True)
-st.markdown('<div class="vision-text">অন্যরকম বাংলাদেশের স্বপ্ন নিয়ে</div>', unsafe_allow_html=True)
-st.markdown("<hr style='margin:10px 0px;'>", unsafe_allow_html=True)
-
-# ৩. ডাটা লোডিং ফাংশন
+# ৩. ডাটা লোডিং
 @st.cache_data(ttl=300)
-def load_live_data():
+def load_data():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDhr-rwKe88LKKludd74G766j1l4vbvoaHi1YwwkefcfjCCgDGkZL6Ty9ngNv3gVvd5ezElgXghOs3/pub?gid=81417&single=true&output=csv"
     df = pd.read_csv(url)
-    
-    # ডেট ঠিক করা
     df['Order Date'] = pd.to_datetime(df['Order Date'], dayfirst=True, errors='coerce')
     df = df.dropna(subset=['Order Date'])
-    
-    # নিউমেরিক ডাটা ঠিক করা
-    numeric_cols = ['Total Amount', 'Discount', 'Total Qty', 'Shipping Charge']
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-    
+    for col in ['Total Amount', 'Discount', 'Total Qty']:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     for i in range(1, 16):
-        qty_col = f'Product QTY-{i}'
-        if qty_col in df.columns:
-            df[qty_col] = pd.to_numeric(df[qty_col], errors='coerce').fillna(0)
-            
+        if f'Product QTY-{i}' in df.columns:
+            df[f'Product QTY-{i}'] = pd.to_numeric(df[f'Product QTY-{i}'], errors='coerce').fillna(0)
+            df[f'Product Price-{i}'] = pd.to_numeric(df[f'Product Price-{i}'], errors='coerce').fillna(0)
     return df
 
 try:
-    df = load_live_data()
+    df = load_data()
 
-    # --- সাইডবার ফিল্টার (ডেট রেঞ্জ ফিক্সড) ---
-    st.sidebar.header("Filter by Date")
-    
-    # বর্তমান ডেট এবং রেঞ্জ ঠিক করা
+    # --- হেডার ও লোগো ---
+    h_col1, h_col2 = st.columns([1, 6])
+    with h_col1:
+        if os.path.exists(logo_path): st.image(logo_path, width=100)
+    with h_col2:
+        st.markdown(f"<h1 style='color:#FF6600; margin-top:-10px;'>Tele Sales AI Analytics Dashboard</h1>", unsafe_allow_html=True)
+
+    # --- সাইডবার ফিল্টার ---
+    st.sidebar.header("📅 Date Selection")
     today = datetime.date.today()
-    start_of_range = datetime.date(2024, 1, 1)
-    end_of_range = datetime.date(2030, 12, 31)
-
-    start_date = st.sidebar.date_input("Start Date", today, min_value=start_of_range, max_value=end_of_range)
-    end_date = st.sidebar.date_input("End Date", today, min_value=start_of_range, max_value=end_of_range)
-
-    # ফিল্টারিং
+    start_date = st.sidebar.date_input("Start Date", today - datetime.timedelta(days=30))
+    end_date = st.sidebar.date_input("End Date", today)
     f_df = df[(df['Order Date'].dt.date >= start_date) & (df['Order Date'].dt.date <= end_date)]
 
-    # --- KPI Metrics ---
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Revenue", f"৳{f_df['Total Amount'].sum():,.0f}")
-    m2.metric("Total Orders", f"{len(f_df)}")
-    m3.metric("Items Sold", f"{int(f_df['Total Qty'].sum())}")
-    m4.metric("Total Discount", f"৳{f_df['Discount'].sum():,.0f}")
+    # --- ১. টপ মেট্রিক্স (KPIs) ---
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    rev = f_df['Total Amount'].sum()
+    ords = len(f_df)
+    aov = rev/ords if ords > 0 else 0
+    qty = f_df['Total Qty'].sum()
+    dis = f_df['Discount'].sum()
+    dis_p = (dis/rev*100) if rev > 0 else 0
 
-    # --- Row 1: Charts ---
-    st.markdown("#### 📈 Sales Trends & Types")
-    c1, c2 = st.columns([2, 1])
-    
-    with c1:
-        trend = f_df.groupby(f_df['Order Date'].dt.date)['Total Amount'].sum().reset_index()
-        fig_trend = px.area(trend, x='Order Date', y='Total Amount', title="Daily Revenue Trend", color_discrete_sequence=['#FF6600'])
-        st.plotly_chart(fig_trend, use_container_width=True)
-        
-    with c2:
-        f_df['Order_Type'] = f_df['Total Qty'].apply(lambda x: "Single Item" if x == 1 else "Multiple Items")
-        complexity = f_df['Order_Type'].value_counts().reset_index()
-        fig_comp = px.pie(complexity, values='count', names='Order_Type', title="Order Distribution (%)", hole=0.4, color_discrete_sequence=['#FF6600', '#333'])
-        st.plotly_chart(fig_comp, use_container_width=True)
+    m1.markdown(f"<div class='metric-card'><p style='color:grey;'>Revenue</p><h3>৳{rev:,.0f}</h3></div>", unsafe_allow_html=True)
+    m2.markdown(f"<div class='metric-card'><p style='color:grey;'>Orders</p><h3>{ords}</h3></div>", unsafe_allow_html=True)
+    m3.markdown(f"<div class='metric-card'><p style='color:grey;'>AOV</p><h3>৳{aov:,.0f}</h3></div>", unsafe_allow_html=True)
+    m4.markdown(f"<div class='metric-card'><p style='color:grey;'>Product Qty</p><h3>{int(qty)}</h3></div>", unsafe_allow_html=True)
+    m5.markdown(f"<div class='metric-card'><p style='color:grey;'>Discount</p><h3>৳{dis:,.0f}</h3></div>", unsafe_allow_html=True)
+    m6.markdown(f"<div class='metric-card'><p style='color:grey;'>Discount %</p><h3>{dis_p:.1f}%</h3></div>", unsafe_allow_html=True)
 
-    # --- Row 2: Performance ---
-    st.markdown("<hr style='margin:10px 0px;'>", unsafe_allow_html=True)
-    c3, c4 = st.columns(2)
+    # --- ২. AI COO Insight ---
+    top_agent = f_df.groupby('Order Collector')['Total Amount'].sum().idxmax() if len(f_df)>0 else "N/A"
+    st.markdown(f"""
+    <div class='insight-box'>
+        <h4>🤖 AI Business Insight</h4>
+        <p><b>{top_agent}</b> is currently leading in revenue. Most orders are single product orders. 
+        Focus on multi-product bundles to increase AOV (Average Order Value).</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    with c3:
-        prod_list = []
-        for i in range(1, 16):
-            if f'Product Name-{i}' in f_df.columns:
-                temp = f_df[[f'Product Name-{i}', f'Product QTY-{i}']].copy().rename(columns={f'Product Name-{i}': 'Product', f'Product QTY-{i}': 'Qty'})
-                prod_list.append(temp)
-        all_p = pd.concat(prod_list)
-        all_p = all_p[(all_p['Product'] != "0") & (all_p['Product'].notna()) & (all_p['Product'] != "")]
-        p_stats = all_p.groupby('Product')['Qty'].sum().reset_index().sort_values('Qty', ascending=False)
-        fig_p = px.bar(p_stats.head(10), x='Qty', y='Product', orientation='h', color='Qty', color_continuous_scale='Oranges', title="Top 10 Products by Qty")
-        st.plotly_chart(fig_p, use_container_width=True)
+    # --- ৩. এজেন্ট সেগমেন্ট (Person-wise Analysis) ---
+    st.markdown("<div class='section-header'>Agent Performance (Person-wise)</div>", unsafe_allow_html=True)
+    a_col1, a_col2 = st.columns(2)
 
-    with c4:
-        agent_s = f_df.groupby('Order Collector')['Total Amount'].sum().reset_index().sort_values('Total Amount', ascending=False)
-        fig_a = px.bar(agent_s, x='Order Collector', y='Total Amount', color='Total Amount', color_continuous_scale='YlOrBr', title="Revenue per Agent")
-        st.plotly_chart(fig_a, use_container_width=True)
+    with a_col1:
+        agent_rev = f_df.groupby('Order Collector')['Total Amount'].sum().sort_values(ascending=False).reset_index()
+        fig_a_rev = px.bar(agent_rev, x='Total Amount', y='Order Collector', orientation='h', title="Revenue Contribution by Person",
+                          color='Total Amount', color_continuous_scale='Blues', text_auto='.2s')
+        st.plotly_chart(fig_a_rev, use_container_width=True)
 
-    # --- Row 3: Demographics ---
-    st.markdown("<hr style='margin:10px 0px;'>", unsafe_allow_html=True)
-    st.markdown("#### 👤 Customer Profile Analysis")
-    c5, c6, c7 = st.columns(3)
-    with c5:
-        fig_cl = px.pie(f_df, names='Class', title="Class Distribution", hole=0.3)
-        st.plotly_chart(fig_cl, use_container_width=True)
-    with c6:
-        age_data = f_df['Age'].value_counts().reset_index().head(10)
-        fig_ag = px.bar(age_data, x='Age', y='count', title="Sales by Age Group", color_discrete_sequence=['#FF6600'])
-        st.plotly_chart(fig_ag, use_container_width=True)
-    with c7:
-        fig_pr = px.pie(f_df, names='Profession', title="Profession Distribution")
-        st.plotly_chart(fig_pr, use_container_width=True)
+    with a_col2:
+        agent_qty = f_df.groupby('Order Collector')['Total Qty'].sum().sort_values(ascending=False).reset_index()
+        fig_a_qty = px.bar(agent_qty, x='Total Qty', y='Order Collector', orientation='h', title="Product Qty Contribution by Person",
+                          color='Total Qty', color_continuous_scale='Greens', text_auto=True)
+        st.plotly_chart(fig_a_qty, use_container_width=True)
 
-    # --- Row 4: Geography ---
-    st.markdown("<hr style='margin:10px 0px;'>", unsafe_allow_html=True)
-    st.markdown("#### 📍 Geographical Analysis")
-    c8, c9 = st.columns(2)
-    with c8:
-        dist_data = f_df['District'].value_counts().reset_index().head(15)
-        fig_dt = px.bar(dist_data, x='count', y='District', orientation='h', title="Top 15 Districts", color_discrete_sequence=['#333'])
-        st.plotly_chart(fig_dt, use_container_width=True)
-    with c9:
-        sub_data = f_df['Sub District'].value_counts().reset_index().head(15)
-        fig_sd = px.bar(sub_data, x='count', y='Sub District', orientation='h', title="Top 15 Sub Districts", color_discrete_sequence=['#FF6600'])
-        st.plotly_chart(fig_sd, use_container_width=True)
+    # Agent Ranking Table
+    st.markdown("#### Team Ranking with Contribution %")
+    agent_stats = f_df.groupby('Order Collector').agg(
+        Revenue=('Total Amount', 'sum'),
+        Orders=('Total Amount', 'count'),
+        Qty=('Total Qty', 'sum')
+    ).sort_values(by='Revenue', ascending=False).reset_index()
+    agent_stats['Rev %'] = (agent_stats['Revenue'] / rev * 100).map('{:.1f}%'.format)
+    agent_stats['AOV'] = (agent_stats['Revenue'] / agent_stats['Orders']).map('৳{:.0f}'.format)
+    st.table(agent_stats)
+
+    # --- ৪. প্রোডাক্ট সেগমেন্ট ---
+    st.markdown("<div class='section-header'>Product Analytics</div>", unsafe_allow_html=True)
+    p_col1, p_col2 = st.columns(2)
+
+    # মেल्टিং প্রোডাক্ট ডাটা (সবগুলো আইটেম এক করার জন্য)
+    all_items = []
+    for i in range(1, 16):
+        if f'Product Name-{i}' in f_df.columns:
+            temp = f_df[[f'Product Name-{i}', f'Product QTY-{i}', f'Product Price-{i}']].copy().dropna()
+            temp.columns = ['Product', 'Qty', 'Price']
+            all_items.append(temp)
+    p_df = pd.concat(all_items)
+    p_df = p_df[(p_df['Product'] != "0") & (p_df['Product'] != "")]
+    p_df['Revenue'] = p_df['Qty'] * p_df['Price']
+    p_summary = p_df.groupby('Product').agg({'Qty': 'sum', 'Revenue': 'sum'}).sort_values(by='Qty', ascending=False).reset_index()
+
+    with p_col1:
+        fig_p_qty = px.bar(p_summary.head(10), x='Qty', y='Product', orientation='h', title="Top 10 Products by Qty", color='Qty', color_continuous_scale='YlOrRd')
+        st.plotly_chart(fig_p_qty, use_container_width=True)
+    with p_col2:
+        fig_p_rev = px.pie(p_summary.head(8), values='Revenue', names='Product', title="Revenue Share by Product", hole=0.4)
+        st.plotly_chart(fig_p_rev, use_container_width=True)
+
+    # --- ৫. এরিয়া ও ডেমোগ্রাফিক সেগমেন্ট ---
+    st.markdown("<div class='section-header'>Area & Demographics</div>", unsafe_allow_html=True)
+    d1, d2, d3 = st.columns(3)
+
+    with d1:
+        dist_rev = f_df.groupby('District')['Total Amount'].sum().sort_values(ascending=False).head(10).reset_index()
+        fig_dist = px.bar(dist_rev, x='Total Amount', y='District', orientation='h', title="Top 10 Districts (Revenue)", color_discrete_sequence=['#3B82F6'])
+        st.plotly_chart(fig_dist, use_container_width=True)
+    with d2:
+        fig_class = px.pie(f_df, names='Class', title="Class-wise Contribution", hole=0.4)
+        st.plotly_chart(fig_class, use_container_width=True)
+    with d3:
+        f_df['Order_Type'] = f_df['Total Qty'].apply(lambda x: "Single" if x==1 else ("Double" if x==2 else "Multi"))
+        fig_type = px.pie(f_df, names='Order_Type', title="Order Complexity (Single/Double/Multi)", color_discrete_sequence=['#FF6600', '#2D2E5F', '#E5E7EB'])
+        st.plotly_chart(fig_type, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Something went wrong: {e}")
+    st.error(f"Error: {e}")
