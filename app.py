@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import os
 import datetime
 
@@ -8,27 +9,40 @@ import datetime
 logo_path = "logo.png"
 if not os.path.exists(logo_path): logo_path = "logo.jpg"
 
-st.set_page_config(page_title="Bigganbaksho Analytics", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Bigganbaksho AI Dashboard", layout="wide", page_icon="📊")
 
-# ২. কাস্টম প্রফেশনাল CSS (গাঢ় কালো লিখা এবং বোল্ড ডিজাইন)
+# ২. কাস্টম CSS (লিখা বড়, বোল্ড এবং সামারি কার্ড ইমপ্রুভমেন্ট)
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; color: #000000 !important; }
+    /* পুরো পেজের টেক্সট গাঢ় কালো */
+    html, body, [class*="css"] { color: #000000 !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     
-    .main-title { text-align: center; color: #FF6600; font-size: 52px; font-weight: 900; margin-top: -100px; margin-bottom: 2px; }
-    .developer-text { text-align: center; font-style: italic; font-size: 18px; color: #333; margin-bottom: 5px; }
-    .slogan-text { text-align: center; font-size: 28px; font-weight: 800; color: #000; margin-top: 5px; }
-    .vision-text { text-align: center; font-size: 18px; color: #444; margin-bottom: 20px; }
+    /* হেডিং স্টাইল */
+    .main-title { text-align: center; color: #FF6600; font-size: 55px; font-weight: 900; margin-top: -80px; margin-bottom: 5px; }
+    .developer-text { text-align: center; font-style: italic; font-size: 20px; color: #333; font-weight: 600; }
+    .slogan-text { text-align: center; font-size: 30px; font-weight: 800; color: #000; margin-top: 10px; }
+    .vision-text { text-align: center; font-size: 20px; color: #444; font-weight: 600; margin-bottom: 30px; }
     
-    .metric-box { background: #FFFFFF; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: center; border-top: 6px solid #FF6600; margin-bottom: 20px; }
-    .metric-label { font-size: 14px; color: #555; font-weight: 700; text-transform: uppercase; }
-    .metric-value { font-size: 32px; color: #000; font-weight: 900; margin: 5px 0; }
+    /* সামারি কার্ড - কিছুটা বড় এবং বোল্ড */
+    .metric-card { 
+        background: white; 
+        padding: 25px; /* আগের চেয়ে বড় প্যাডিং */
+        border-radius: 15px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        text-align: center; 
+        border-top: 8px solid #FF6600; 
+        margin-bottom: 20px;
+    }
+    .metric-label { font-size: 18px; color: #555; font-weight: 800; text-transform: uppercase; }
+    .metric-value { font-size: 38px; color: #000; font-weight: 900; margin: 10px 0; }
 
-    .stTable, table { color: #000000 !important; font-weight: 600 !important; width: 100%; }
-    th { background-color: #f8f9fa !important; color: #000 !important; font-weight: 900 !important; font-size: 16px; }
+    /* টেবিল ডাটা গাঢ় কালো এবং বোল্ড */
+    .stTable, table { color: #000000 !important; font-weight: 700 !important; }
     
-    .section-header { font-size: 26px; font-weight: 900; color: #000; margin-top: 40px; margin-bottom: 20px; border-left: 8px solid #FF6600; padding-left: 15px; background: #fdf2e9; padding-top: 5px; padding-bottom: 5px; }
+    .section-header { 
+        font-size: 28px; font-weight: 900; color: #000; margin-top: 40px; margin-bottom: 20px; 
+        border-left: 10px solid #FF6600; padding-left: 15px; background: #FFF5EE; padding-top: 10px; padding-bottom: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -40,46 +54,35 @@ def load_data():
     df['Order Date'] = pd.to_datetime(df['Order Date'], dayfirst=True, errors='coerce')
     df = df.dropna(subset=['Order Date'])
     
-    # ফাঁকা ঘর পূরণ
-    cols_to_fill = ['Class', 'Age', 'Profession', 'District']
-    for col in cols_to_fill:
-        if col in df.columns:
-            df[col] = df[col].fillna("Unknown").replace("", "Unknown")
-            
-    # নম্বর ফরম্যাট ফিক্স
+    # সব সংখ্যা পূর্ণ সংখ্যায় (Integer) রূপান্তর
     for col in ['Total Amount', 'Discount', 'Total Qty']:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+        
+    for i in range(1, 16):
+        if f'Product QTY-{i}' in df.columns:
+            df[f'Product QTY-{i}'] = pd.to_numeric(df[f'Product QTY-{i}'], errors='coerce').fillna(0).astype(int)
+        if f'Product Price-{i}' in df.columns:
+            df[f'Product Price-{i}'] = pd.to_numeric(df[f'Product Price-{i}'], errors='coerce').fillna(0).astype(int)
     return df
-
-# সাহায্যকারী ফাংশন কন্ট্রিবিউশন টেবিল তৈরির জন্য
-def get_contribution_table(df, group_col, total_rev):
-    stats = df.groupby(group_col).agg(
-        Revenue=('Total Amount', 'sum'),
-        Orders=('Total Amount', 'count'),
-        Qty=('Total Qty', 'sum')
-    ).sort_values(by='Revenue', ascending=False).reset_index()
-    stats['Rev %'] = (stats['Revenue'] / total_rev * 100).map('{:.1f}%'.format)
-    stats['Revenue'] = stats['Revenue'].map('৳{:,}'.format)
-    return stats
 
 try:
     df = load_data()
 
-    # --- হেডার ---
-    if os.path.exists(logo_path): st.image(logo_path, width=110)
+    # --- হেডার ও লোগো ---
+    if os.path.exists(logo_path): st.image(logo_path, width=120)
     st.markdown('<div class="main-title">Tele Sales AI Analytics Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="developer-text">Web App Developed By-Shujoy Shaha</div>', unsafe_allow_html=True)
     st.markdown('<div class="slogan-text">ম্যানুয়েল কাজের দিন শেষ, বিজ্ঞানবাক্সে বাংলাদেশ</div>', unsafe_allow_html=True)
     st.markdown('<div class="vision-text">অন্যরকম বাংলাদেশের স্বপ্ন নিয়ে</div>', unsafe_allow_html=True)
 
     # --- সাইডবার ফিল্টার ---
-    st.sidebar.header("📅 Date Range")
+    st.sidebar.header("📅 Select Reporting Period")
     today = datetime.date.today()
-    start_date = st.sidebar.date_input("Start Date", today - datetime.timedelta(days=30))
-    end_date = st.sidebar.date_input("End Date", today)
+    start_date = st.sidebar.date_input("Start Date", today - datetime.timedelta(days=30), min_value=datetime.date(2024,1,1), max_value=datetime.date(2030,12,31))
+    end_date = st.sidebar.date_input("End Date", today, min_value=datetime.date(2024,1,1), max_value=datetime.date(2030,12,31))
     f_df = df[(df['Order Date'].dt.date >= start_date) & (df['Order Date'].dt.date <= end_date)]
 
-    # --- KPI মেট্রিক্স ---
+    # --- ১. টপ সামারি রিপোর্ট (বড় এবং বোল্ড) ---
     rev = int(f_df['Total Amount'].sum())
     ords = len(f_df)
     qty = int(f_df['Total Qty'].sum())
@@ -87,59 +90,86 @@ try:
     aov = int(rev/ords) if ords > 0 else 0
     dis_p = (dis/rev*100) if rev > 0 else 0
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    metrics = [("Revenue", f"৳{rev:,}"), ("Orders", f"{ords}"), ("AOV", f"৳{aov:,}"), 
-               ("Product Qty", f"{qty:,}"), ("Discount", f"৳{dis:,}"), ("Discount %", f"{dis_p:.1f}%")]
-    for col, (label, value) in zip([c1, c2, c3, c4, c5, c6], metrics):
-        col.markdown(f"<div class='metric-box'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div>", unsafe_allow_html=True)
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    summary_data = [
+        ("Revenue", f"৳{rev:,}"), ("Orders", f"{ords}"), ("AOV", f"৳{aov:,}"), 
+        ("Total Qty", f"{qty:,}"), ("Discount", f"৳{dis:,}"), ("Discount %", f"{dis_p:.1f}%")
+    ]
+    for col, (label, value) in zip([m1, m2, m3, m4, m5, m6], summary_data):
+        col.markdown(f"<div class='metric-card'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div>", unsafe_allow_html=True)
 
-    # --- ১. এজেন্ট পারফরম্যান্স (Person Wise) ---
+    # --- ২. এজেন্ট পারফরম্যান্স ---
     st.markdown("<div class='section-header'>Agent Performance (Person-wise)</div>", unsafe_allow_html=True)
-    col_a1, col_a2 = st.columns([1, 1])
-    with col_a1:
-        fig_agent = px.bar(f_df.groupby('Order Collector')['Total Amount'].sum().reset_index(), 
-                           x='Total Amount', y='Order Collector', orientation='h', 
-                           title="Revenue by Agent", color_discrete_sequence=['#FF6600'], text_auto='.2s')
-        fig_agent.update_traces(textfont=dict(size=14, color='black', family='Arial Black'))
-        st.plotly_chart(fig_agent, use_container_width=True)
-    with col_a2:
-        st.table(get_contribution_table(f_df, 'Order Collector', rev))
+    a_col1, a_col2 = st.columns(2)
 
-    # --- ২. ক্লাস এবং বয়স ভিত্তিক (Class & Age Wise) ---
-    st.markdown("<div class='section-header'>Customer Wise: Class & Age Report</div>", unsafe_allow_html=True)
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        st.markdown("#### Class-wise Revenue Contribution")
-        st.table(get_contribution_table(f_df, 'Class', rev))
-    with col_c2:
-        st.markdown("#### Age-wise Revenue Contribution")
-        st.table(get_contribution_table(f_df, 'Age', rev))
+    with a_col1:
+        agent_rev = f_df.groupby('Order Collector')['Total Amount'].sum().sort_values(ascending=False).reset_index()
+        fig_a_rev = px.bar(agent_rev, x='Total Amount', y='Order Collector', orientation='h', title="Revenue by Agent",
+                          color='Total Amount', color_continuous_scale='Oranges', text_auto=True)
+        fig_a_rev.update_traces(textfont=dict(size=14, color='black', family='Arial Black'), textangle=0)
+        st.plotly_chart(fig_a_rev, use_container_width=True)
 
-    # --- ৩. প্রফেশন এবং জেলা ভিত্তিক (Profession & District Wise) ---
-    st.markdown("<div class='section-header'>Customer Wise: Profession & District Report</div>", unsafe_allow_html=True)
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        st.markdown("#### Profession-wise Revenue Contribution")
-        st.table(get_contribution_table(f_df, 'Profession', rev))
-    with col_d2:
-        st.markdown("#### Top 15 Districts (Revenue)")
-        st.table(get_contribution_table(f_df, 'District', rev).head(15))
+    with a_col2:
+        agent_qty = f_df.groupby('Order Collector')['Total Qty'].sum().sort_values(ascending=False).reset_index()
+        fig_a_qty = px.bar(agent_qty, x='Total Qty', y='Order Collector', orientation='h', title="Product Qty by Agent",
+                          color='Total Qty', color_continuous_scale='Greens', text_auto=True)
+        fig_a_qty.update_traces(textfont=dict(size=14, color='black', family='Arial Black'))
+        fig_a_qty.update_layout(xaxis=dict(tickformat='d'))
+        st.plotly_chart(fig_a_qty, use_container_width=True)
 
-    # --- ৪. প্রোডাক্ট অ্যানালিটিক্স ---
-    st.markdown("<div class='section-header'>Product Analytics (Top Selling)</div>", unsafe_allow_html=True)
+    # র‍্যাঙ্কিং টেবিল
+    st.markdown("#### Team Ranking Table")
+    agent_stats = f_df.groupby('Order Collector').agg(Revenue=('Total Amount', 'sum'), Orders=('Total Amount', 'count'), Qty=('Total Qty', 'sum')).sort_values(by='Revenue', ascending=False).reset_index()
+    agent_stats['Rev %'] = (agent_stats['Revenue'] / rev * 100).map('{:.1f}%'.format)
+    agent_stats['AOV'] = (agent_stats['Revenue'] / agent_stats['Orders']).fillna(0).astype(int).map('৳{:,}'.format)
+    agent_stats['Revenue'] = agent_stats['Revenue'].map('৳{:,}'.format)
+    st.table(agent_stats)
+
+    # --- ৩. প্রোডাক্ট অ্যানালিটিক্স ---
+    st.markdown("<div class='section-header'>Product Analytics</div>", unsafe_allow_html=True)
+    
     all_items = []
     for i in range(1, 16):
         if f'Product Name-{i}' in f_df.columns:
             temp = f_df[[f'Product Name-{i}', f'Product QTY-{i}']].copy().dropna().rename(columns={f'Product Name-{i}': 'Product', f'Product QTY-{i}': 'Qty'})
             all_items.append(temp)
     p_df = pd.concat(all_items)
-    p_df = p_df[(p_df['Product'] != "0") & (p_df['Product'] != "")]
+    p_df = p_df[(p_df['Product'] != "0") & (p_df['Product'] != "") & (p_df['Product'].notna())]
     p_summary = p_df.groupby('Product').agg(Qty=('Qty', 'sum')).sort_values(by='Qty', ascending=False).reset_index()
 
-    fig_p = px.bar(p_summary.head(10), x='Qty', y='Product', orientation='h', title="Top 10 Products by Qty",
-                   color='Qty', color_continuous_scale='Oranges', text_auto=True)
-    fig_p.update_layout(xaxis=dict(showticklabels=False, title=""))
-    st.plotly_chart(fig_p, use_container_width=True)
+    fig_p_qty = px.bar(p_summary.head(10), x='Qty', y='Product', orientation='h', title="Top 10 Products by Qty", color='Qty', color_continuous_scale='YlOrRd', text_auto=True)
+    fig_p_qty.update_traces(textfont=dict(size=14, color='black', family='Arial Black'))
+    fig_p_qty.update_layout(xaxis=dict(tickformat='d'))
+    st.plotly_chart(fig_p_qty, use_container_width=True)
+
+    # --- ৪. কাস্টমার প্রোফাইল (ক্লাস, এজ, প্রফেশন, ডিস্ট্রিক্ট) ---
+    st.markdown("<div class='section-header'>Customer Profile & Geographical Report</div>", unsafe_allow_html=True)
+    
+    c_col1, c_col2 = st.columns(2)
+    with c_col1:
+        # ক্লাস ভিত্তিক রিপোর্ট
+        class_stats = f_df['Class'].value_counts().reset_index().rename(columns={'count': 'Orders', 'Class': 'Student Class'})
+        fig_class = px.bar(class_stats, x='Orders', y='Student Class', orientation='h', title="Class-wise Distribution", color='Orders', color_continuous_scale='Blues', text_auto=True)
+        st.plotly_chart(fig_class, use_container_width=True)
+        
+    with c_col2:
+        # বয়স ভিত্তিক রিপোর্ট
+        age_stats = f_df['Age'].value_counts().reset_index().head(10).rename(columns={'count': 'Orders', 'Age': 'Age Group'})
+        fig_age = px.bar(age_stats, x='Orders', y='Age Group', orientation='h', title="Age-wise Distribution", color='Orders', color_continuous_scale='Purples', text_auto=True)
+        st.plotly_chart(fig_age, use_container_width=True)
+
+    d_col1, d_col2 = st.columns(2)
+    with d_col1:
+        # প্রফেশন ভিত্তিক রিপোর্ট
+        prof_stats = f_df['Profession'].value_counts().reset_index().rename(columns={'count': 'Orders', 'Profession': 'Guardian Profession'})
+        fig_prof = px.pie(prof_stats, values='Orders', names='Guardian Profession', title="Profession Distribution (%)", hole=0.4)
+        st.plotly_chart(fig_prof, use_container_width=True)
+        
+    with d_col2:
+        # জেলা ভিত্তিক রিপোর্ট
+        dist_stats = f_df['District'].value_counts().reset_index().head(15).rename(columns={'count': 'Orders', 'District': 'District Name'})
+        fig_dist = px.bar(dist_stats, x='Orders', y='District Name', orientation='h', title="Top 15 Districts by Orders", color='Orders', color_continuous_scale='Reds', text_auto=True)
+        st.plotly_chart(fig_dist, use_container_width=True)
 
 except Exception as e:
     st.error(f"Error: {e}")
