@@ -11,37 +11,37 @@ if not os.path.exists(logo_path): logo_path = "logo.jpg"
 
 st.set_page_config(page_title="Bigganbaksho AI Dashboard", layout="wide", page_icon="📊")
 
-# ২. কাস্টম CSS (সামারি জুম করা, ডার্ক গ্রে টেক্সট এবং কালারড হেডিং)
+# ২. কাস্টম CSS (জুমড সামারি, ডার্ক গ্রে টেক্সট এবং সেকশন হেডিং)
 st.markdown("""
     <style>
-    /* টেক্সট কালার ডার্ক গ্রে */
+    /* টেক্সট কালার ডার্ক গ্রে (বোল্ড ছাড়া) */
     html, body, [class*="css"] { 
         color: #333333 !important; 
         font-family: 'Segoe UI', sans-serif; 
     }
     
-    /* মেইন টাইটেল এবং স্লোগান */
-    .main-title { text-align: center; color: #FF6600; font-size: 55px; font-weight: 800; margin-top: -80px; margin-bottom: 5px; }
+    /* হেডিং পজিশন */
+    .main-title { text-align: center; color: #FF6600; font-size: 50px; font-weight: 800; margin-top: -80px; margin-bottom: 5px; }
     .developer-text { text-align: center; font-style: italic; font-size: 18px; color: #666; margin-bottom: 10px; }
-    .slogan-text { text-align: center; font-size: 30px; font-weight: 800; color: #222; margin-top: 10px; }
-    .vision-text { text-align: center; font-size: 20px; color: #777; margin-bottom: 30px; }
+    .slogan-text { text-align: center; font-size: 28px; font-weight: 700; color: #222; margin-top: 10px; }
+    .vision-text { text-align: center; font-size: 18px; color: #777; margin-bottom: 30px; }
     
-    /* সামারি সেকশন জুম করা (বিশাল কার্ড) */
+    /* বিশাল বড় সামারি কার্ড (Extra Zoomed) */
     .metric-card { 
         background: #FFFFFF; 
-        padding: 40px 15px; 
+        padding: 40px 10px; 
         border-radius: 15px; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.08); 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
         text-align: center; 
         border-top: 8px solid #FF6600; 
         margin-bottom: 25px;
     }
-    .metric-label { font-size: 22px; color: #555; margin-bottom: 15px; font-weight: 600; }
-    .metric-value { font-size: 50px; color: #333; margin: 0; font-weight: 700; }
+    .metric-label { font-size: 22px; color: #555; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; }
+    .metric-value { font-size: 50px; color: #000; font-weight: 700; margin: 0; }
 
-    /* প্রতিটি রিপোর্ট সেকশনের কালারড হেডিং */
+    /* কালারড সেকশন হেডিং */
     .section-header { 
-        font-size: 28px; 
+        font-size: 26px; 
         color: #333; 
         background-color: #F0F2F6; 
         padding: 12px 20px; 
@@ -65,7 +65,7 @@ def load_data():
     df['Order Date'] = pd.to_datetime(df['Order Date'], dayfirst=True, errors='coerce')
     df = df.dropna(subset=['Order Date'])
     
-    # সব সংখ্যা পূর্ণ সংখ্যায় রূপান্তর
+    # নম্বর ফরম্যাট ফিক্স
     cols = ['Total Amount', 'Discount', 'Total Qty']
     for col in cols:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
@@ -97,7 +97,7 @@ try:
     end_date = st.sidebar.date_input("End Date", today, min_value=datetime.date(2024,1,1), max_value=datetime.date(2030,12,31))
     f_df = df[(df['Order Date'].dt.date >= start_date) & (df['Order Date'].dt.date <= end_date)]
 
-    # --- ১. সামারি রিপোর্ট (বিশাল বড় জুম করা) ---
+    # --- ১. বিশাল সামারি রিপোর্ট ---
     rev = int(f_df['Total Amount'].sum())
     ords = len(f_df)
     qty = int(f_df['Total Qty'].sum())
@@ -113,73 +113,95 @@ try:
     for col, (label, value) in zip([m1, m2, m3, m4, m5, m6], summaries):
         col.markdown(f"<div class='metric-card'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div>", unsafe_allow_html=True)
 
-    # --- ২. এজেন্ট রিপোর্ট সেকশন ---
-    st.markdown('<div class="section-header">Agent Performance Report</div>', unsafe_allow_html=True)
-    a_col1, a_col2 = st.columns(2)
+    # --- ২. এজেন্ট পারফরম্যান্স (Person-wise) ---
+    st.markdown('<div class="section-header">Agent Performance (Person-wise)</div>', unsafe_allow_html=True)
     
-    agent_data = f_df.groupby('Order Collector').agg(Revenue=('Total Amount', 'sum'), Orders=('Total Amount', 'count'), Qty=('Total Qty', 'sum')).sort_values(by='Revenue', ascending=False).reset_index()
+    agent_data = f_df.groupby('Order Collector').agg(
+        Revenue=('Total Amount', 'sum'),
+        Orders=('Total Amount', 'count'),
+        Qty=('Total Qty', 'sum')
+    ).sort_values(by='Revenue', ascending=False).reset_index()
+    
+    # % কলাম যোগ করা (আপনার চাওয়া অনুযায়ী Qty এর পরে)
+    agent_data['Rev %'] = (agent_data['Revenue'] / rev * 100).map('{:.1f}%'.format)
 
+    a_col1, a_col2 = st.columns(2)
     with a_col1:
-        fig_a = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', title="Revenue by Agent", color_discrete_sequence=['#FF6600'], text_auto=True)
-        fig_a.update_traces(textangle=0, textposition='outside') # টেক্সট সোজা করার কমান্ড
-        st.plotly_chart(fig_a, use_container_width=True)
+        # Navy Blue কালারের রেভিনিউ চার্ট (No 'k')
+        fig_rev = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', title="Revenue by Person",
+                         color_discrete_sequence=['#000080'], text_auto=True)
+        fig_rev.update_traces(textfont=dict(size=14, color='black'), textangle=0, texttemplate='৳%{x:,}')
+        fig_rev.update_layout(xaxis=dict(tickformat=',d', title="Total Revenue"))
+        st.plotly_chart(fig_rev, use_container_width=True)
+        
     with a_col2:
-        # টেবিল থেকে অতিরিক্ত শূন্য সরানো হয়েছে
-        disp_agent = agent_data.copy()
-        disp_agent['Revenue'] = disp_agent['Revenue'].map('৳{:,}'.format)
-        st.table(disp_agent)
+        # গ্রিন কালারের কিউটি চার্ট (সোজা টেক্সট)
+        fig_qty = px.bar(agent_data, x='Qty', y='Order Collector', orientation='h', title="Product Qty by Person",
+                         color_discrete_sequence=['#2E7D32'], text_auto=True)
+        fig_qty.update_traces(textfont=dict(size=14, color='black'), textangle=0)
+        fig_qty.update_layout(xaxis=dict(tickformat='d', title="Total Quantity"))
+        st.plotly_chart(fig_qty, use_container_width=True)
 
-    # --- ৩. প্রোডাক্ট রিপোর্ট সেকশন ---
+    # টেবিল (কিউটি এর পর % কলাম)
+    table_df = agent_data[['Order Collector', 'Revenue', 'Orders', 'Qty', 'Rev %']].copy()
+    table_df['Revenue'] = table_df['Revenue'].map('৳{:,}'.format)
+    st.table(table_df)
+
+    # --- ৩. প্রোডাক্ট অ্যানালিটিক্স (Dropdown সহ) ---
     st.markdown('<div class="section-header">Product Sales Analytics</div>', unsafe_allow_html=True)
-    p_col1, p_col2 = st.columns(2)
+    
+    # এজেন্ট ড্রপডাউন
+    agent_list = ["All Agents"] + sorted(list(f_df['Order Collector'].unique()))
+    selected_agent = st.selectbox("Filter Report by Agent:", agent_list)
+
+    # ডাটা ফিল্টার করা
+    p_f_df = f_df if selected_agent == "All Agents" else f_df[f_df['Order Collector'] == selected_agent]
 
     all_items = []
     for i in range(1, 16):
-        if f'Product Name-{i}' in f_df.columns:
-            temp = f_df[[f'Product Name-{i}', f'Product QTY-{i}']].copy().dropna().rename(columns={f'Product Name-{i}': 'Product', f'Product QTY-{i}': 'Qty'})
+        if f'Product Name-{i}' in p_f_df.columns:
+            temp = p_f_df[[f'Product Name-{i}', f'Product QTY-{i}']].copy().dropna()
+            temp.columns = ['Product', 'Qty']
             all_items.append(temp)
     p_df = pd.concat(all_items)
     p_df = p_df[(p_df['Product'] != "0") & (p_df['Product'] != "")]
     p_summary = p_df.groupby('Product').agg(Qty=('Qty', 'sum')).sort_values(by='Qty', ascending=False).reset_index()
 
+    p_col1, p_col2 = st.columns(2)
     with p_col1:
-        fig_p = px.bar(p_summary.head(10), x='Qty', y='Product', orientation='h', title="Top 10 Products by Qty", color='Qty', color_continuous_scale='Oranges', text_auto=True)
-        fig_p.update_traces(textangle=0, textposition='inside') # টেক্সট সোজা করা হয়েছে
+        fig_p = px.bar(p_summary.head(10), x='Qty', y='Product', orientation='h', title=f"Top Products ({selected_agent})",
+                       color='Qty', color_continuous_scale='Oranges', text_auto=True)
+        fig_p.update_traces(textfont=dict(size=14, color='black'), textangle=0)
         fig_p.update_layout(xaxis=dict(tickformat='d'))
         st.plotly_chart(fig_p, use_container_width=True)
     with p_col2:
         st.table(p_summary.head(10))
 
-    # --- ৪. কাস্টমার রিপোর্ট সেকশন (ক্লাস, এজ, প্রফেশন, ডিসট্রিক্ট) ---
-    st.markdown('<div class="section-header">Customer Demographics & Location Analytics</div>', unsafe_allow_html=True)
+    # --- ৪. কাস্টমার রিপোর্ট (ক্লাস, এজ, প্রফেশন, ডিসট্রিক্ট) ---
+    st.markdown('<div class="section-header">Customer Profile & Geographical Report</div>', unsafe_allow_html=True)
     
-    # Row 1: Class and Age
     c_col1, c_col2 = st.columns(2)
     with c_col1:
-        st.markdown("#### Class-wise Order Distribution")
-        class_stats = f_df['Class'].value_counts().reset_index()
-        fig_cl = px.pie(class_stats, values='count', names='Class', hole=0.4, color_discrete_sequence=px.colors.qualitative.Prism)
+        st.markdown("#### Class-wise Distribution")
+        fig_cl = px.pie(f_df, names='Class', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
         st.plotly_chart(fig_cl, use_container_width=True)
-        
     with c_col2:
-        st.markdown("#### Top Age Groups")
-        age_stats = f_df['Age'].value_counts().reset_index().head(10)
-        fig_ag = px.bar(age_stats, x='count', y='Age', orientation='h', color_discrete_sequence=['#333333'], text_auto=True)
+        st.markdown("#### Age-wise Distribution")
+        age_s = f_df['Age'].value_counts().reset_index().head(10)
+        fig_ag = px.bar(age_s, x='count', y='Age', orientation='h', color_discrete_sequence=['#333'], text_auto=True)
         fig_ag.update_traces(textangle=0)
         st.plotly_chart(fig_ag, use_container_width=True)
 
-    # Row 2: Profession and District
     d_col1, d_col2 = st.columns(2)
     with d_col1:
-        st.markdown("#### Guardian's Profession (Table)")
-        prof_stats = f_df['Profession'].value_counts().reset_index().rename(columns={'count': 'Orders'})
-        st.table(prof_stats.head(10))
-        
+        st.markdown("#### Guardian Profession")
+        st.table(f_df['Profession'].value_counts().reset_index().head(10))
     with d_col2:
-        st.markdown("#### Top 15 Districts by Revenue")
+        st.markdown("#### Top 15 Districts (Revenue)")
         dist_stats = f_df.groupby('District')['Total Amount'].sum().reset_index().sort_values(by='Total Amount', ascending=False).head(15)
-        fig_dt = px.bar(dist_stats, x='Total Amount', y='District', orientation='h', color='Total Amount', color_continuous_scale='Greens', text_auto='.2s')
-        fig_dt.update_traces(textangle=0)
+        fig_dt = px.bar(dist_stats, x='Total Amount', y='District', orientation='h', color_discrete_sequence=['#FF6600'], text_auto=True)
+        fig_dt.update_traces(texttemplate='৳%{x:,}', textangle=0)
+        fig_dt.update_layout(xaxis=dict(tickformat=',d'))
         st.plotly_chart(fig_dt, use_container_width=True)
 
 except Exception as e:
