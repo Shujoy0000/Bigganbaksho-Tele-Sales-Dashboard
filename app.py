@@ -11,44 +11,44 @@ if not os.path.exists(logo_path): logo_path = "logo.jpg"
 
 st.set_page_config(page_title="Bigganbaksho AI Dashboard", layout="wide", page_icon="📊")
 
-# ২. কাস্টম CSS (সামারি কার্ড বড় করা এবং কালারড হেডিং)
+# ২. কাস্টম CSS (সামারি জুম করা, ডার্ক গ্রে টেক্সট এবং কালারড হেডিং)
 st.markdown("""
     <style>
-    /* টেক্সট কালার ডার্ক গ্রে */
+    /* টেক্সট কালার ডার্ক গ্রে এবং বোল্ড না */
     html, body, [class*="css"] { 
         color: #333333 !important; 
         font-family: 'Segoe UI', sans-serif; 
     }
     
     /* মেইন টাইটেল এবং স্লোগান */
-    .main-title { text-align: center; color: #FF6600; font-size: 55px; font-weight: 800; margin-top: -80px; margin-bottom: 5px; }
+    .main-title { text-align: center; color: #FF6600; font-size: 50px; font-weight: 800; margin-top: -80px; margin-bottom: 5px; }
     .developer-text { text-align: center; font-style: italic; font-size: 18px; color: #666; margin-bottom: 10px; }
     .slogan-text { text-align: center; font-size: 28px; color: #222; margin-top: 10px; }
     .vision-text { text-align: center; font-size: 18px; color: #777; margin-bottom: 30px; }
     
-    /* সামারি সেকশন - অনেক বড় (Zoomed) */
+    /* সামারি সেকশন জুম করা (বড় কার্ড) */
     .metric-card { 
         background: #FFFFFF; 
-        padding: 35px 15px; /* আগের চেয়ে বেশি স্পেস */
+        padding: 30px 10px; 
         border-radius: 15px; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.08); 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
         text-align: center; 
-        border-top: 8px solid #FF6600; 
+        border-top: 6px solid #FF6600; 
         margin-bottom: 25px;
     }
-    .metric-label { font-size: 22px; color: #555; margin-bottom: 15px; } /* লেবেল বড় */
-    .metric-value { font-size: 48px; color: #333; margin: 0; } /* সংখ্যা অনেক বড় */
+    .metric-label { font-size: 20px; color: #555; margin-bottom: 10px; }
+    .metric-value { font-size: 42px; color: #333; margin: 0; }
 
     /* প্রতিটি রিপোর্ট সেকশনের কালারড হেডিং */
     .section-header { 
-        font-size: 26px; 
+        font-size: 24px; 
         color: #333; 
-        background-color: #F0F2F6; 
-        padding: 12px 20px; 
+        background-color: #F0F2F6; /* হালকা গ্রে ব্যাকগ্রাউন্ড */
+        padding: 10px 20px; 
         border-radius: 8px; 
-        border-left: 10px solid #FF6600; 
-        margin-top: 45px; 
-        margin-bottom: 25px; 
+        border-left: 8px solid #FF6600; 
+        margin-top: 40px; 
+        margin-bottom: 20px; 
     }
     
     /* টেবিল স্টাইল */
@@ -122,6 +122,7 @@ try:
         fig_a = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', title="Revenue by Agent", color_discrete_sequence=['#FF6600'], text_auto=True)
         st.plotly_chart(fig_a, use_container_width=True)
     with a_col2:
+        # টেবিল রিফাইনমেন্ট
         disp_agent = agent_data.copy()
         disp_agent['Revenue'] = disp_agent['Revenue'].map('৳{:,}'.format)
         st.table(disp_agent)
@@ -133,7 +134,7 @@ try:
     all_items = []
     for i in range(1, 16):
         if f'Product Name-{i}' in f_df.columns:
-            temp = f_df[[f'Product Name-{i}', f'Product QTY-{i}', f'Product Price-{i}']].copy().dropna().rename(columns={f'Product Name-{i}': 'Product', f'Product QTY-{i}': 'Qty'})
+            temp = f_df[[f'Product Name-{i}', f'Product QTY-{i}']].copy().dropna().rename(columns={f'Product Name-{i}': 'Product', f'Product QTY-{i}': 'Qty'})
             all_items.append(temp)
     p_df = pd.concat(all_items)
     p_df = p_df[(p_df['Product'] != "0") & (p_df['Product'] != "")]
@@ -145,33 +146,29 @@ try:
     with p_col2:
         st.table(p_summary.head(10))
 
-    # --- ৪. কাস্টমার রিপোর্ট (নতুন) ---
-    st.markdown('<div class="section-header">Customer Demographics & Location Report</div>', unsafe_allow_html=True)
+    # --- ৪. কাস্টমার প্রোফাইল রিপোর্ট (নতুন) ---
+    st.markdown('<div class="section-header">Customer Profile Analysis (Class, Age, Profession, District)</div>', unsafe_allow_html=True)
     
     c_col1, c_col2 = st.columns(2)
     with c_col1:
         st.markdown("#### Class-wise Distribution")
         class_stats = f_df['Class'].value_counts().reset_index()
-        fig_cl = px.pie(class_stats, values='count', names='Class', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_cl = px.pie(class_stats, values='count', names='Class', hole=0.4)
         st.plotly_chart(fig_cl, use_container_width=True)
-        
     with c_col2:
         st.markdown("#### Age-wise Distribution")
         age_stats = f_df['Age'].value_counts().reset_index().head(10)
-        fig_ag = px.bar(age_stats, x='count', y='Age', orientation='h', title="Top Age Groups", color_discrete_sequence=['#444'], text_auto=True)
+        fig_ag = px.bar(age_stats, x='count', y='Age', orientation='h', color_discrete_sequence=['#333'], text_auto=True)
         st.plotly_chart(fig_ag, use_container_width=True)
 
     d_col1, d_col2 = st.columns(2)
     with d_col1:
-        st.markdown("#### Top Guardian Professions")
-        prof_stats = f_df['Profession'].value_counts().reset_index().head(10)
-        fig_prof = px.bar(prof_stats, x='count', y='Profession', orientation='h', color_discrete_sequence=['#FF6600'], text_auto=True)
-        st.plotly_chart(fig_prof, use_container_width=True)
-        
+        st.markdown("#### Profession Distribution")
+        st.table(f_df['Profession'].value_counts().reset_index())
     with d_col2:
         st.markdown("#### District-wise Sales (Top 15)")
         dist_stats = f_df['District'].value_counts().reset_index().head(15)
-        fig_dt = px.bar(dist_stats, x='count', y='District', orientation='h', color='count', color_continuous_scale='Greens', text_auto=True)
+        fig_dt = px.bar(dist_stats, x='count', y='District', orientation='h', color_discrete_sequence=['#FF6600'], text_auto=True)
         st.plotly_chart(fig_dt, use_container_width=True)
 
 except Exception as e:
