@@ -11,33 +11,56 @@ if not os.path.exists(logo_path): logo_path = "logo.jpg"
 
 st.set_page_config(page_title="Bigganbaksho AI Dashboard", layout="wide", page_icon="📊")
 
-# ২. কাস্টম CSS (জুমড সামারি, ডার্ক গ্রে টেক্সট এবং কালারড হেডিং)
+# ২. কাস্টম CSS (বিশাল বড় সামারি এবং প্রফেশনাল ডিজাইন)
 st.markdown("""
     <style>
-    html, body, [class*="css"] { color: #333333 !important; font-family: 'Segoe UI', sans-serif; }
-    .main-title { text-align: center; color: #FF6600; font-size: 50px; font-weight: 800; margin-top: -80px; margin-bottom: 5px; }
-    .developer-text { text-align: center; font-style: italic; font-size: 18px; color: #666; margin-bottom: 10px; }
-    .slogan-text { text-align: center; font-size: 28px; font-weight: 700; color: #222; margin-top: 10px; }
-    .vision-text { text-align: center; font-size: 18px; color: #777; margin-bottom: 30px; }
-    
-    /* বিশাল বড় সামারি কার্ড */
-    .metric-card { 
-        background: #FFFFFF; padding: 40px 10px; border-radius: 15px; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; 
-        border-top: 8px solid #FF6600; margin-bottom: 25px;
+    /* টেক্সট কালার ডার্ক গ্রে */
+    html, body, [class*="css"] { 
+        color: #333333 !important; 
+        font-family: 'Segoe UI', sans-serif; 
     }
-    .metric-label { font-size: 22px; color: #555; margin-bottom: 15px; font-weight: 600; text-transform: uppercase; }
-    .metric-value { font-size: 52px; color: #000; font-weight: 700; margin: 0; }
+    
+    /* হেডিং পজিশন */
+    .main-title { text-align: center; color: #FF6600; font-size: 55px; font-weight: 800; margin-top: -80px; margin-bottom: 5px; }
+    .developer-text { text-align: center; font-style: italic; font-size: 20px; color: #666; margin-bottom: 10px; }
+    .slogan-text { text-align: center; font-size: 30px; font-weight: 800; color: #222; margin-top: 10px; }
+    .vision-text { text-align: center; font-size: 20px; color: #777; margin-bottom: 30px; }
+    
+    /* বিশাল বড় সামারি কার্ড (১৫০ পিক্সেল সংখ্যা) */
+    .metric-card { 
+        background: #FFFFFF; 
+        padding: 20px; 
+        border-radius: 20px; 
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08); 
+        text-align: center; 
+        border-top: 10px solid #FF6600; 
+        margin-bottom: 25px;
+    }
+    .metric-label { font-size: 30px; color: #555; margin-bottom: 0px; font-weight: 700; text-transform: uppercase; }
+    .metric-value { 
+        font-size: 150px; /* আপনার রিকোয়ারমেন্ট অনুযায়ী */
+        color: #000; 
+        font-weight: 900; 
+        margin: 0; 
+        line-height: 1.1;
+        letter-spacing: -5px;
+    }
 
     /* কালারড সেকশন হেডিং */
     .section-header { 
-        font-size: 28px; color: #333; background-color: #F0F2F6; 
-        padding: 12px 20px; border-radius: 8px; border-left: 10px solid #FF6600; 
-        margin-top: 45px; margin-bottom: 25px; font-weight: 700;
+        font-size: 30px; 
+        color: #333; 
+        background-color: #F0F2F6; 
+        padding: 15px 25px; 
+        border-radius: 10px; 
+        border-left: 12px solid #FF6600; 
+        margin-top: 50px; 
+        margin-bottom: 30px; 
+        font-weight: 800;
     }
     
     /* টেবিল স্টাইল */
-    .stTable { color: #333333 !important; width: 100%; }
+    .stTable { color: #333333 !important; font-weight: 600 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -69,8 +92,8 @@ def add_total_row(df, numeric_cols, label_col):
 try:
     df = load_data()
 
-    # --- হেডার ---
-    if os.path.exists(logo_path): st.image(logo_path, width=120)
+    # --- হেডার ও লোগো ---
+    if os.path.exists(logo_path): st.image(logo_path, width=130)
     st.markdown('<div class="main-title">Tele Sales AI Analytics Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="developer-text">Web App Developed By-Shujoy Shaha</div>', unsafe_allow_html=True)
     st.markdown('<div class="slogan-text">ম্যানুয়েল কাজের দিন শেষ, বিজ্ঞানবাক্সে বাংলাদেশ</div>', unsafe_allow_html=True)
@@ -84,7 +107,7 @@ try:
     end_date = st.sidebar.date_input("End Date", today, min_value=datetime.date(2024,1,1), max_value=datetime.date(2030,12,31))
     f_df = df[(df['Order Date'].dt.date >= start_date) & (df['Order Date'].dt.date <= end_date)]
 
-    # --- ১. বিশাল সামারি রিপোর্ট ---
+    # --- ১. বিশাল বড় সামারি রিপোর্ট (৩টি করে ২ লাইনে) ---
     rev = int(f_df['Total Amount'].sum())
     ords = len(f_df)
     qty = int(f_df['Total Qty'].sum())
@@ -92,24 +115,28 @@ try:
     aov = int(rev/ords) if ords > 0 else 0
     dis_p = (dis/rev*100) if rev > 0 else 0
 
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    summaries = [("Revenue", f"৳{rev:,}"), ("Orders", f"{ords}"), ("AOV", f"৳{aov:,}"), 
-                 ("Product Qty", f"{qty:,}"), ("Discount", f"৳{dis:,}"), ("Discount %", f"{dis_p:.1f}%")]
-    for col, (label, value) in zip([m1, m2, m3, m4, m5, m6], summaries):
-        col.markdown(f"<div class='metric-card'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div>", unsafe_allow_html=True)
+    # ১ম লাইন
+    m1, m2, m3 = st.columns(3)
+    m1.markdown(f"<div class='metric-card'><p class='metric-label'>Revenue</p><p class='metric-value'>৳{rev:,}</p></div>", unsafe_allow_html=True)
+    m2.markdown(f"<div class='metric-card'><p class='metric-label'>Orders</p><p class='metric-value'>{ords:,}</p></div>", unsafe_allow_html=True)
+    m3.markdown(f"<div class='metric-card'><p class='metric-label'>AOV</p><p class='metric-value'>৳{aov:,}</p></div>", unsafe_allow_html=True)
+    
+    # ২য় লাইন
+    m4, m5, m6 = st.columns(3)
+    m4.markdown(f"<div class='metric-card'><p class='metric-label'>Product Qty</p><p class='metric-value'>{qty:,}</p></div>", unsafe_allow_html=True)
+    m5.markdown(f"<div class='metric-card'><p class='metric-label'>Discount</p><p class='metric-value'>৳{dis:,}</p></div>", unsafe_allow_html=True)
+    m6.markdown(f"<div class='metric-card'><p class='metric-label'>Discount %</p><p class='metric-value'>{dis_p:.1f}%</p></div>", unsafe_allow_html=True)
 
-    # --- ২. এজেন্ট পারফরম্যান্স (Green Chart, No Pie) ---
+    # --- ২. এজেন্ট পারফরম্যান্স (সবুজ চার্ট, সংখ্যা বাইরে) ---
     st.markdown('<div class="section-header">Agent Performance (Person-wise)</div>', unsafe_allow_html=True)
     agent_data = f_df.groupby('Order Collector').agg(Revenue=('Total Amount', 'sum'), Orders=('Total Amount', 'count'), Qty=('Total Qty', 'sum')).sort_values(by='Revenue', ascending=False).reset_index()
     agent_data['Rev %'] = (agent_data['Revenue'] / rev * 100).map('{:.1f}%'.format)
 
-    # গ্রিন চার্ট (Bars Outside)
     fig_a = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', title="Revenue by Person", color_discrete_sequence=['#2E7D32'], text_auto=True)
-    fig_a.update_traces(textfont=dict(size=15, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}')
+    fig_a.update_traces(textfont=dict(size=18, color='black', family='Arial Black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}')
     fig_a.update_layout(xaxis=dict(tickformat=',d', showticklabels=True, title="Total Revenue"))
     st.plotly_chart(fig_a, use_container_width=True)
 
-    # টেবিল উইথ টোটাল
     table_a = add_total_row(agent_data, ['Revenue', 'Orders', 'Qty'], 'Order Collector')
     table_a['Revenue'] = table_a['Revenue'].apply(lambda x: f"৳{x:,}" if isinstance(x, (int, float)) else x)
     st.table(table_a)
@@ -135,7 +162,7 @@ try:
         c1, c2 = st.columns([2, 1])
         with c1:
             fig = px.bar(stats.head(10), x='Value', y=group_col, orientation='h', color='Value', color_continuous_scale='Oranges', text_auto=True)
-            fig.update_traces(textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
+            fig.update_traces(textfont=dict(size=14, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
             fig.update_layout(xaxis=dict(showticklabels=False, title=""))
             st.plotly_chart(fig, use_container_width=True)
         with c2:
@@ -147,9 +174,10 @@ try:
         if f'Product Name-{i}' in p_df_f.columns:
             temp = p_df_f[[f'Product Name-{i}', f'Product QTY-{i}']].copy().dropna().rename(columns={f'Product Name-{i}': 'Product', f'Product QTY-{i}': 'Qty'})
             all_i.append(temp)
-    p_data = pd.concat(all_i)
-    p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "")]
-    render_report("Product Sales Analytics", p_data, 'Product', 'Qty', current_qty)
+    if all_i:
+        p_data = pd.concat(all_i)
+        p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "")]
+        render_report("Product Sales Analytics", p_data, 'Product', 'Qty', current_qty)
 
     # --- ৪. কাস্টমার ও জিওগ্রাফিক্যাল ---
     render_report("Class-wise Distribution", p_df_f, 'Class', 'Total Amount', len(p_df_f))
