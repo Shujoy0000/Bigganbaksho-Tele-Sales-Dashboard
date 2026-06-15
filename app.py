@@ -38,7 +38,7 @@ st.markdown("""
     }
     .metric-label { font-size: 30px; color: #555; margin-bottom: 0px; font-weight: 700; text-transform: uppercase; }
     .metric-value { 
-        font-size: 150px; /* আপনার রিকোয়ারমেন্ট অনুযায়ী */
+        font-size: 150px; 
         color: #000; 
         font-weight: 900; 
         margin: 0; 
@@ -80,13 +80,15 @@ def load_data():
             df[f'Product Price-{i}'] = pd.to_numeric(df[f'Product Price-{i}'], errors='coerce').fillna(0).astype(int)
     return df
 
-# সাহায্যকারী ফাংশন: টেবিলের নিচে Total যোগ করা
-def add_total_row(df, numeric_cols, label_col):
+# সাহায্যকারী ফাংশন: টেবিলের নিচে Total এবং 100% যোগ করা
+def add_total_row_with_pct(df, numeric_cols, label_col, pct_col_name):
     df_sum = df[numeric_cols].sum()
     total_row = {col: "" for col in df.columns}
     total_row[label_col] = "**Total**"
     for col in numeric_cols:
         total_row[col] = df_sum[col]
+    if pct_col_name in total_row:
+        total_row[pct_col_name] = "100.0%"
     return pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
 
 try:
@@ -115,13 +117,11 @@ try:
     aov = int(rev/ords) if ords > 0 else 0
     dis_p = (dis/rev*100) if rev > 0 else 0
 
-    # ১ম লাইন
     m1, m2, m3 = st.columns(3)
     m1.markdown(f"<div class='metric-card'><p class='metric-label'>Revenue</p><p class='metric-value'>৳{rev:,}</p></div>", unsafe_allow_html=True)
     m2.markdown(f"<div class='metric-card'><p class='metric-label'>Orders</p><p class='metric-value'>{ords:,}</p></div>", unsafe_allow_html=True)
     m3.markdown(f"<div class='metric-card'><p class='metric-label'>AOV</p><p class='metric-value'>৳{aov:,}</p></div>", unsafe_allow_html=True)
     
-    # ২য় লাইন
     m4, m5, m6 = st.columns(3)
     m4.markdown(f"<div class='metric-card'><p class='metric-label'>Product Qty</p><p class='metric-value'>{qty:,}</p></div>", unsafe_allow_html=True)
     m5.markdown(f"<div class='metric-card'><p class='metric-label'>Discount</p><p class='metric-value'>৳{dis:,}</p></div>", unsafe_allow_html=True)
@@ -137,7 +137,8 @@ try:
     fig_a.update_layout(xaxis=dict(tickformat=',d', showticklabels=True, title="Total Revenue"))
     st.plotly_chart(fig_a, use_container_width=True)
 
-    table_a = add_total_row(agent_data, ['Revenue', 'Orders', 'Qty'], 'Order Collector')
+    # টেবিল উইথ টোটাল এবং ১০০%
+    table_a = add_total_row_with_pct(agent_data, ['Revenue', 'Orders', 'Qty'], 'Order Collector', 'Rev %')
     table_a['Revenue'] = table_a['Revenue'].apply(lambda x: f"৳{x:,}" if isinstance(x, (int, float)) else x)
     st.table(table_a)
 
@@ -149,7 +150,7 @@ try:
     current_rev = p_df_f['Total Amount'].sum()
     current_qty = p_df_f['Total Qty'].sum()
 
-    # রিপোর্ট ফাংশন (Chart-Table Layout)
+    # রিপোর্ট ফাংশন (Chart-Table Layout with Total Row)
     def render_report(title, df_input, group_col, val_col, total_val, is_currency=False):
         st.markdown(f"### {title}")
         if group_col == 'Product':
@@ -157,16 +158,20 @@ try:
         else:
             stats = df_input.groupby(group_col).agg(Value=('Total Amount', 'count' if not is_currency else 'sum')).sort_values(by='Value', ascending=False).reset_index()
         
-        stats['%'] = (stats['Value'] / total_val * 100).fillna(0).map('{:.1f}%'.format)
+        stats['%'] = (stats['Value'] / (total_val if total_val > 0 else 1) * 100).fillna(0).map('{:.1f}%'.format)
         
         c1, c2 = st.columns([2, 1])
         with c1:
             fig = px.bar(stats.head(10), x='Value', y=group_col, orientation='h', color='Value', color_continuous_scale='Oranges', text_auto=True)
-            fig.update_traces(textfont=dict(size=14, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
+            fig.update_traces(textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
             fig.update_layout(xaxis=dict(showticklabels=False, title=""))
             st.plotly_chart(fig, use_container_width=True)
         with c2:
-            st.table(add_total_row(stats.head(15), ['Value'], group_col))
+            # টেবিলের নিচে Total এবং 100% যোগ করা
+            final_table = add_total_row_with_pct(stats.head(15), ['Value'], group_col, '%')
+            if is_currency:
+                final_table['Value'] = final_table['Value'].apply(lambda x: f"৳{x:,}" if isinstance(x, (int, float)) else x)
+            st.table(final_table)
 
     # --- ৩. প্রোডাক্ট অ্যানালিটিক্স ---
     all_i = []
