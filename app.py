@@ -260,7 +260,9 @@ def load_data():
     df["Source"] = df["Source"].replace({
         "FaceBook": "Facebook",
         "facebook": "Facebook",
-        "FACEBOOK": "Facebook"
+        "FACEBOOK": "Facebook",
+        "Face Book": "Facebook",
+        "FB": "Facebook"
     })
 
     # Revenue = শীটের শেষের Product Price column
@@ -729,13 +731,16 @@ try:
         unsafe_allow_html=True
     )
 
-    # Source + Agent Filter
+    # এখানে Source Filter এবং Agent Filter দুইটাই থাকবে
     filter_col1, filter_col2 = st.columns(2)
 
     with filter_col1:
+        source_options = ["All Sources"] + sorted(list(f_df["Source"].dropna().unique()))
         sel_source = st.selectbox(
             "Filter Reports by Source:",
-            ["All Sources"] + sorted(list(f_df["Source"].dropna().unique()))
+            source_options,
+            index=0,
+            key="detailed_source_filter"
         )
 
     source_filtered_df = f_df.copy()
@@ -744,9 +749,12 @@ try:
         source_filtered_df = source_filtered_df[source_filtered_df["Source"] == sel_source]
 
     with filter_col2:
+        agent_options = ["All Agents"] + sorted(list(source_filtered_df["Order Collector"].dropna().unique()))
         sel_agent = st.selectbox(
             "Filter Reports by Agent:",
-            ["All Agents"] + sorted(list(source_filtered_df["Order Collector"].dropna().unique()))
+            agent_options,
+            index=0,
+            key="detailed_agent_filter"
         )
 
     p_df_f = source_filtered_df.copy()
