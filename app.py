@@ -184,7 +184,7 @@ try:
         with c2:
             st.table(process_table_with_others(stats, group_col, 'Value', grand_total, is_currency))
 
-    # ৩. প্রোডাক্ট অ্যানালিটিক্স
+    # ৩. প্রোডাক্ট (Multi-color like Image 2)
     all_i = []
     for i in range(1, 16):
         if f'Product Name-{i}' in p_df_f.columns:
@@ -193,7 +193,8 @@ try:
     if all_i:
         p_data = pd.concat(all_i)
         p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "")]
-        render_final_report("Product Sales Analytics", p_data, 'Product', 'Qty', curr_qty)
+        # কালার প্যালেট ঠিক করার জন্য px.colors.qualitative.Plotly ব্যবহার
+        render_final_report("Product Sales Analytics", p_data, 'Product', 'Qty', curr_qty, color_scheme='Plotly')
 
     # ৪. কাস্টমার ও জিওগ্রাফিক্যাল রিপোর্ট
     render_final_report("Class-wise Distribution", p_df_f, 'Class', 'Total Amount', curr_ords)
