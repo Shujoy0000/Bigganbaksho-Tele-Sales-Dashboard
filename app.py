@@ -80,20 +80,54 @@ st.markdown("""
 def load_data():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDhr-rwKe88LKKludd74G766j1l4vbvoaHi1YwwkefcfjCCgDGkZL6Ty9ngNv3gVvd5ezElgXghOs3/pub?gid=81417&single=true&output=csv"
     df = pd.read_csv(url)
+
+    # কলামের নামের আগে-পরে extra space থাকলে clean হবে
+    df.columns = df.columns.astype(str).str.strip()
+
     df['Order Date'] = pd.to_datetime(df['Order Date'], dayfirst=True, errors='coerce')
     df = df.dropna(subset=['Order Date'])
-    for col in ['Total Amount', 'Discount', 'Total Qty']:
+
+    # প্রয়োজনীয় numeric column clean
+    for col in ['Total Amount', 'Shipping Charge', 'Discount', 'Total Qty']:
+        if col not in df.columns:
+            df[col] = 0
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
+    # Product QTY এবং Product Price-1 থেকে Product Price-15 clean
     for i in range(1, 16):
         qty_col = f'Product QTY-{i}'
         price_col = f'Product Price-{i}'
-        if qty_col in df.columns: df[qty_col] = pd.to_numeric(df[qty_col], errors='coerce').fillna(0).astype(int)
-        if price_col in df.columns: df[price_col] = pd.to_numeric(df[price_col], errors='coerce').fillna(0).astype(int)
+        if qty_col in df.columns:
+            df[qty_col] = pd.to_numeric(df[qty_col], errors='coerce').fillna(0).astype(int)
+        if price_col in df.columns:
+            df[price_col] = pd.to_numeric(df[price_col], errors='coerce').fillna(0).astype(int)
+
+    # মূল revenue logic:
+    # Total Amount = Payable Amount, এখানে delivery/shipping charge add করা থাকে
+    # Product Price = Discount বাদ দেওয়ার পর product amount
+    # তাই Gross Product Revenue = Product Price + Discount
+    if 'Product Price' in df.columns:
+        df['Product Price'] = pd.to_numeric(df['Product Price'], errors='coerce').fillna(0).astype(int)
+
+        # যদি কোনো row-তে Product Price blank/0 থাকে, fallback হিসেবে Total Amount - Shipping Charge নেওয়া হবে
+        fallback_product_price = df['Total Amount'] - df['Shipping Charge']
+        net_product_price = df['Product Price'].where(df['Product Price'] > 0, fallback_product_price)
+
+        df['Sales Amount'] = net_product_price + df['Discount']
+    else:
+        # যদি কোনো কারণে Product Price column না পাওয়া যায়
+        df['Sales Amount'] = (df['Total Amount'] - df['Shipping Charge']) + df['Discount']
+
+    df['Sales Amount'] = pd.to_numeric(df['Sales Amount'], errors='coerce').fillna(0).astype(int)
+    df['Sales Amount'] = df['Sales Amount'].clip(lower=0)
+
     return df
 
 # সাহায্যকারী ফাংশন: টেবিল প্রসেসিং এবং দশমিক ফিক্স
 def process_table_data(df, label_col, val_col, total_val, is_currency=False, limit_15=True):
-    if df.empty: return df
+    if df.empty:
+        return df
+
     df = df.copy()
     
     # শুধু সংখ্যার কলামগুলো নেওয়া হচ্ছে
@@ -135,7 +169,9 @@ try:
     df = load_data()
 
     # --- হেডার ---
-    if os.path.exists(logo_path): st.image(logo_path, width=120)
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=120)
+
     st.markdown('<div class="main-title">Tele Sales Analytics Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="developer-text">Web App Developed By-Shujoy Shaha</div>', unsafe_allow_html=True)
     st.markdown('<div class="slogan-text">ম্যানুয়েল কাজের দিন শেষ, বিজ্ঞানবাক্সে বাংলাদেশ</div>', unsafe_allow_html=True)
@@ -146,15 +182,21 @@ try:
     today = datetime.date.today()
     start_date = st.sidebar.date_input("Start Date", today - datetime.timedelta(days=30))
     end_date = st.sidebar.date_input("End Date", today)
+
     f_df = df[(df['Order Date'].dt.date >= start_date) & (df['Order Date'].dt.date <= end_date)]
 
     # --- ১. সামারি ---
-    rev = int(f_df['Total Amount'].sum())
-    ords, qty, dis = len(f_df), int(f_df['Total Qty'].sum()), int(f_df['Discount'].sum())
-    aov = int(rev/ords) if ords > 0 else 0
-    dis_p = (dis/rev*100) if rev > 0 else 0
+    # Revenue হিসাব হবে Sales Amount থেকে, Total Amount থেকে না
+    rev = int(f_df['Sales Amount'].sum())
+    ords = len(f_df)
+    qty = int(f_df['Total Qty'].sum())
+    dis = int(f_df['Discount'].sum())
+
+    aov = int(rev / ords) if ords > 0 else 0
+    dis_p = (dis / rev * 100) if rev > 0 else 0
 
     m1, m2, m3, m4, m5, m6 = st.columns(6)
+
     summaries = [
         ("Revenue", f"৳{rev:,}"),
         ("Orders", f"{ords:,}"),
@@ -172,14 +214,35 @@ try:
 
     # --- ২. এজেন্ট পারফরম্যান্স ---
     st.markdown('<div class="section-header">Agent Performance (Person-wise)</div>', unsafe_allow_html=True)
-    agent_data = f_df.groupby('Order Collector').agg(Revenue=('Total Amount', 'sum'), Orders=('Total Amount', 'count'), Qty=('Total Qty', 'sum')).reset_index()
+
+    agent_data = f_df.groupby('Order Collector').agg(
+        Revenue=('Sales Amount', 'sum'),
+        Orders=('Sales Amount', 'count'),
+        Qty=('Total Qty', 'sum')
+    ).reset_index()
+
     agent_data = agent_data.sort_values('Revenue', ascending=False)
     
-    fig_a = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', color='Order Collector', color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
-    fig_a.update_traces(textfont=dict(size=14, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}')
+    fig_a = px.bar(
+        agent_data,
+        x='Revenue',
+        y='Order Collector',
+        orientation='h',
+        color='Order Collector',
+        color_discrete_sequence=px.colors.qualitative.Vivid,
+        text_auto=True
+    )
+
+    fig_a.update_traces(
+        textfont=dict(size=14, color='black'),
+        textangle=0,
+        textposition='outside',
+        texttemplate='৳%{x:,}'
+    )
     
     # বারের থিকনেস ফিক্সড করার জন্য হাইট এবং মার্জিন কন্ট্রোল
     agent_fig_height = len(agent_data) * 45 + 70
+
     fig_a.update_layout(
         height=agent_fig_height, 
         margin=dict(t=20, b=40, l=10, r=80),
@@ -193,36 +256,68 @@ try:
 
     # --- ৩. বিস্তারিত অ্যানালিটিক্স ড্রপডাউন ---
     st.markdown('<div class="section-header">Detailed Category Analytics</div>', unsafe_allow_html=True)
-    sel_agent = st.selectbox("Filter Reports by Agent:", ["All Agents"] + sorted(list(f_df['Order Collector'].unique())))
+
+    sel_agent = st.selectbox("Filter Reports by Agent:", ["All Agents"] + sorted(list(f_df['Order Collector'].dropna().unique())))
+
     p_df_f = f_df if sel_agent == "All Agents" else f_df[f_df['Order Collector'] == sel_agent]
-    curr_rev, curr_qty, curr_ords = p_df_f['Total Amount'].sum(), p_df_f['Total Qty'].sum(), len(p_df_f)
+
+    curr_rev = p_df_f['Sales Amount'].sum()
+    curr_qty = p_df_f['Total Qty'].sum()
+    curr_ords = len(p_df_f)
 
     # ডাইনামিক রিপোর্ট ফাংশন 
     def render_report_dynamic(title, df_in, group_col, val_col, grand_total, is_currency=False, chart_top_10=True, table_limit_15=True):
         st.markdown(f"### {title}")
-        if df_in.empty: return
+
+        if df_in.empty:
+            return
         
         df_work = df_in.copy()
+
+        if group_col not in df_work.columns:
+            st.warning(f"{group_col} column not found.")
+            return
+
         df_work[group_col] = df_work[group_col].astype(str).str.replace(r'\.0$', '', regex=True)
+        df_work = df_work[(df_work[group_col] != "nan") & (df_work[group_col] != "") & (df_work[group_col] != "0")]
             
-        stats = df_work.groupby(group_col).agg(Value=(val_col, 'sum' if group_col == 'Product' else 'count' if not is_currency else 'sum')).reset_index()
+        if df_work.empty:
+            return
+
+        stats = df_work.groupby(group_col).agg(
+            Value=(val_col, 'sum' if group_col == 'Product' else 'count' if not is_currency else 'sum')
+        ).reset_index()
         
         stats = stats.sort_values('Value', ascending=False)
-        cat_array = stats[group_col].tolist() 
+        cat_array = stats[group_col].tolist()
             
         c1, c2 = st.columns([2, 1])
+
         with c1:
             if chart_top_10:
                 plot_data = stats.head(10).copy()
             else:
                 plot_data = stats.copy()
                 
-            fig = px.bar(plot_data, x='Value', y=group_col, orientation='h', color=group_col,
-                         color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
-            fig.update_traces(textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
+            fig = px.bar(
+                plot_data,
+                x='Value',
+                y=group_col,
+                orientation='h',
+                color=group_col,
+                color_discrete_sequence=px.colors.qualitative.Vivid,
+                text_auto=True
+            )
+
+            fig.update_traces(
+                textangle=0,
+                textposition='outside',
+                texttemplate='৳%{x:,}' if is_currency else '%{x:,}'
+            )
             
             # বারের থিকনেস ফিক্সড করার জন্য হাইট এবং মার্জিন কন্ট্রোল
             dynamic_height = len(plot_data) * 45 + 50
+
             fig.update_layout(
                 height=dynamic_height, 
                 margin=dict(t=20, b=20, l=10, r=80),
@@ -230,6 +325,7 @@ try:
                 xaxis=dict(showticklabels=False, title=""), 
                 showlegend=False
             )
+
             st.plotly_chart(fig, use_container_width=True)
             
         with c2:
@@ -237,20 +333,72 @@ try:
 
     # ৩. প্রোডাক্ট
     all_i = []
+
     for i in range(1, 16):
-        if f'Product Name-{i}' in p_df_f.columns:
-            temp = p_df_f[[f'Product Name-{i}', f'Product QTY-{i}']].copy().dropna().rename(columns={f'Product Name-{i}': 'Product', f'Product QTY-{i}': 'Qty'})
+        name_col = f'Product Name-{i}'
+        qty_col = f'Product QTY-{i}'
+
+        if name_col in p_df_f.columns and qty_col in p_df_f.columns:
+            temp = p_df_f[[name_col, qty_col]].copy().dropna()
+            temp = temp.rename(columns={name_col: 'Product', qty_col: 'Qty'})
             all_i.append(temp)
+
     if all_i:
         p_data = pd.concat(all_i)
-        p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "")]
-        render_report_dynamic("Product Sales Analytics", p_data, 'Product', 'Qty', curr_qty, chart_top_10=True, table_limit_15=True)
+        p_data['Product'] = p_data['Product'].astype(str).str.strip()
+        p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "") & (p_data['Product'] != "nan")]
+
+        render_report_dynamic(
+            "Product Sales Analytics",
+            p_data,
+            'Product',
+            'Qty',
+            curr_qty,
+            chart_top_10=True,
+            table_limit_15=True
+        )
 
     # অন্যান্য কাস্টমার রিপোর্ট
-    render_report_dynamic("Class-wise Distribution", p_df_f, 'Class', 'Total Amount', curr_ords, chart_top_10=True, table_limit_15=True) 
-    render_report_dynamic("Age-wise Distribution", p_df_f, 'Age', 'Total Amount', curr_ords, chart_top_10=True, table_limit_15=True) 
-    render_report_dynamic("Guardian Profession", p_df_f, 'Profession', 'Total Amount', curr_ords, chart_top_10=True, table_limit_15=True)
-    render_report_dynamic("District-wise Revenue", p_df_f, 'District', 'Total Amount', curr_rev, is_currency=True, chart_top_10=True, table_limit_15=True)
+    render_report_dynamic(
+        "Class-wise Distribution",
+        p_df_f,
+        'Class',
+        'Sales Amount',
+        curr_ords,
+        chart_top_10=True,
+        table_limit_15=True
+    ) 
+
+    render_report_dynamic(
+        "Age-wise Distribution",
+        p_df_f,
+        'Age',
+        'Sales Amount',
+        curr_ords,
+        chart_top_10=True,
+        table_limit_15=True
+    ) 
+
+    render_report_dynamic(
+        "Guardian Profession",
+        p_df_f,
+        'Profession',
+        'Sales Amount',
+        curr_ords,
+        chart_top_10=True,
+        table_limit_15=True
+    )
+
+    render_report_dynamic(
+        "District-wise Revenue",
+        p_df_f,
+        'District',
+        'Sales Amount',
+        curr_rev,
+        is_currency=True,
+        chart_top_10=True,
+        table_limit_15=True
+    )
 
 except Exception as e:
     st.error(f"Error: {e}")
