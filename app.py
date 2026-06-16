@@ -24,7 +24,6 @@ st.markdown("""
     .slogan-text { text-align: center; font-size: 30px; font-weight: 800; color: #222; margin-top: 10px; }
     .vision-text { text-align: center; font-size: 20px; color: #777; margin-bottom: 30px; }
     
-    /* মেট্রিক কার্ডের নতুন ডিজাইন */
     .metric-card { 
         background: #FFFFFF; 
         padding: 20px 5px; 
@@ -81,20 +80,14 @@ def load_data():
         if price_col in df.columns: df[price_col] = pd.to_numeric(df[price_col], errors='coerce').fillna(0).astype(int)
     return df
 
-# সাহায্যকারী ফাংশন
-def process_table_with_others(df, label_col, val_col, total_val, is_currency=False, sort_method='value'):
+# সাহায্যকারী ফাংশন: টেবিল প্রসেসিং (১৫টির লিমিট সহ)
+def process_table_data(df, label_col, val_col, total_val, is_currency=False, limit_15=True):
     if df.empty: return df
-    
-    if sort_method == 'value':
-        df = df.sort_values(by=val_col, ascending=False).reset_index(drop=True)
-    elif sort_method == 'label':
-        df = df.sort_values(by=label_col, ascending=True).reset_index(drop=True)
-    else: # sort_method == 'none', আগেই কাস্টম সাজানো হয়েছে
-        df = df.reset_index(drop=True)
-
+    df = df.copy()
     numeric_cols = df.select_dtypes(include='number').columns.tolist()
 
-    if len(df) > 15 and sort_method == 'value':
+    # Top 14 + Others লজিক (টেবিলের জন্য)
+    if limit_15 and len(df) > 15:
         top_df = df.head(14).copy()
         others_dict = {label_col: 'Others'}
         for col in numeric_cols:
@@ -151,18 +144,21 @@ try:
     for col, (label, value) in zip([m1, m2, m3, m4, m5, m6], summaries):
         col.markdown(f"<div class='metric-card'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div>", unsafe_allow_html=True)
 
-    # --- ২. এজেন্ট পারফরম্যান্স ---
+    # --- ২. এজেন্ট পারফরম্যান্স (সবগুলো থাকবে, কোনো Others বা Top 10 নেই) ---
     st.markdown('<div class="section-header">Agent Performance (Person-wise)</div>', unsafe_allow_html=True)
     agent_data = f_df.groupby('Order Collector').agg(Revenue=('Total Amount', 'sum'), Orders=('Total Amount', 'count'), Qty=('Total Qty', 'sum')).reset_index()
+    agent_data = agent_data.sort_values('Revenue', ascending=False)
     
     fig_a = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', color='Order Collector', color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
     fig_a.update_traces(textfont=dict(size=14, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}')
     
-    agent_fig_height = max(150, len(agent_data) * 45 + 60)
-    fig_a.update_layout(height=agent_fig_height, yaxis={'categoryorder':'total descending'}, xaxis=dict(tickformat=',d', title="Total Revenue"), showlegend=False) 
+    agent_fig_height = max(250, len(agent_data) * 45 + 80)
+    # yaxis এ array ম্যাপ করে দেওয়া হয়েছে যাতে সব থেকে বড় বার নিচে থাকে
+    fig_a.update_layout(height=agent_fig_height, yaxis={'categoryorder': 'array', 'categoryarray': agent_data['Order Collector'].tolist()}, xaxis=dict(tickformat=',d', title="Total Revenue"), showlegend=False) 
     
     st.plotly_chart(fig_a, use_container_width=True)
-    st.table(process_table_with_others(agent_data, 'Order Collector', 'Revenue', rev, is_currency=True, sort_method='value'))
+    # টেবিল এর ক্ষেত্রে limit_15=False দেওয়া হয়েছে যাতে সব এজেন্ট দেখায়
+    st.table(process_table_data(agent_data, 'Order Collector', 'Revenue', rev, is_currency=True, limit_15=False))
 
     # --- ৩. বিস্তারিত অ্যানালিটিক্স ড্রপডাউন ---
     st.markdown('<div class="section-header">Detailed Category Analytics</div>', unsafe_allow_html=True)
@@ -170,58 +166,49 @@ try:
     p_df_f = f_df if sel_agent == "All Agents" else f_df[f_df['Order Collector'] == sel_agent]
     curr_rev, curr_qty, curr_ords = p_df_f['Total Amount'].sum(), p_df_f['Total Qty'].sum(), len(p_df_f)
 
-    # ডাইনামিক রিপোর্ট ফাংশন (কাস্টম অর্ডার সহ)
-    def render_report_dynamic(title, df_in, group_col, val_col, grand_total, is_currency=False, sort_by='value', custom_order=None):
+    # ডাইনামিক রিপোর্ট ফাংশন 
+    def render_report_dynamic(title, df_in, group_col, val_col, grand_total, is_currency=False, chart_top_10=True, table_limit_15=True, custom_order=None):
         st.markdown(f"### {title}")
         if df_in.empty: return
-        stats = df_in.groupby(group_col).agg(Value=(val_col, 'sum' if group_col == 'Product' else 'count' if not is_currency else 'sum')).reset_index()
-        stats[group_col] = stats[group_col].astype(str) # নিশ্চিত করা হচ্ছে যেন ক্যাটাগরি হিসেবে কাউন্ট হয়
         
+        df_work = df_in.copy()
+        if custom_order is not None:
+            # Class/Age এর দশমিক (যেমন 5.0) রিমুভ করা হচ্ছে যাতে কাস্টম লিস্টের সাথে হুবহু মিলে যায়
+            df_work[group_col] = df_work[group_col].astype(str).str.replace(r'\.0$', '', regex=True)
+            
+        stats = df_work.groupby(group_col).agg(Value=(val_col, 'sum' if group_col == 'Product' else 'count' if not is_currency else 'sum')).reset_index()
+        
+        if custom_order is not None:
+            unique_vals = stats[group_col].unique().tolist()
+            missing_vals = sorted([v for v in unique_vals if v not in custom_order])
+            full_order = custom_order + missing_vals
+            
+            stats[group_col] = pd.Categorical(stats[group_col], categories=full_order, ordered=True)
+            stats = stats.sort_values(group_col, ascending=True)
+            stats[group_col] = stats[group_col].astype(str)
+            cat_array = full_order # সিরিয়াল নিচ থেকে শুরু হবে
+        else:
+            stats = stats.sort_values('Value', ascending=False)
+            cat_array = stats[group_col].tolist() # সবচেয়ে বড় ভ্যালু নিচে থাকবে
+            
         c1, c2 = st.columns([2, 1])
         with c1:
-            if custom_order is not None:
-                # যে আইটেমগুলো লিস্টে নেই, সেগুলোকে আলাদা করে শেষে (উপরে) যোগ করা হবে
-                unique_vals = stats[group_col].unique().tolist()
-                missing_vals = sorted([v for v in unique_vals if v not in custom_order])
-                full_order = custom_order + missing_vals
-                
-                # টেবিল ও চার্টের জন্য ডাটাফ্রেম সাজানো হচ্ছে
-                stats[group_col] = pd.Categorical(stats[group_col], categories=full_order, ordered=True)
-                stats = stats.sort_values(group_col, ascending=True)
-                stats[group_col] = stats[group_col].astype(str)
-                
-                plot_data = stats.copy()
-                cat_order = 'array' 
-                cat_array = full_order # চার্ট নিচ থেকে শুরু হবে
-                sort_method_for_table = 'none' # ডাটা অলরেডি সাজানো আছে
-                
-            elif sort_by == 'value':
-                plot_data = stats.sort_values('Value', ascending=False).head(10)
-                cat_order = 'total descending' 
-                cat_array = None
-                sort_method_for_table = 'value'
+            # চার্টে Top 10 লজিক (Others ছাড়া)
+            if chart_top_10 and custom_order is None:
+                plot_data = stats.head(10).copy()
             else:
-                plot_data = stats.sort_values(group_col, ascending=True)
-                cat_order = 'category descending' 
-                cat_array = None
-                sort_method_for_table = 'label'
+                plot_data = stats.copy()
                 
             fig = px.bar(plot_data, x='Value', y=group_col, orientation='h', color=group_col,
                          color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
             fig.update_traces(textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
             
-            dynamic_height = max(150, len(plot_data) * 45 + 60)
-            
-            layout_args = {'type': 'category', 'categoryorder': cat_order}
-            if custom_order is not None:
-                layout_args['categoryarray'] = cat_array
-                
-            fig.update_layout(height=dynamic_height, yaxis=layout_args, xaxis=dict(showticklabels=False, title=""), showlegend=False)
-            
+            dynamic_height = max(250, len(plot_data) * 45 + 80)
+            fig.update_layout(height=dynamic_height, yaxis={'type': 'category', 'categoryorder': 'array', 'categoryarray': cat_array}, xaxis=dict(showticklabels=False, title=""), showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
             
         with c2:
-            st.table(process_table_with_others(stats, group_col, 'Value', grand_total, is_currency, sort_method=sort_method_for_table))
+            st.table(process_table_data(stats, group_col, 'Value', grand_total, is_currency, limit_15=table_limit_15))
 
     # ৩. প্রোডাক্ট
     all_i = []
@@ -232,17 +219,21 @@ try:
     if all_i:
         p_data = pd.concat(all_i)
         p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "")]
-        render_report_dynamic("Product Sales Analytics", p_data, 'Product', 'Qty', curr_qty, sort_by='value')
+        # চার্ট Top 10, টেবিল 15 (14+Others)
+        render_report_dynamic("Product Sales Analytics", p_data, 'Product', 'Qty', curr_qty, chart_top_10=True, table_limit_15=True)
 
     # ৪. কাস্টম অর্ডার লিস্ট
     class_order_list = ["Did Not Start School", "Play", "KG", "KG 1", "KG 2", "Nursery", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "Standerd 1", "Standerd 2", "Standerd 3", "Standerd 4", "Standerd 5", "Standerd 6", "Standerd 7", "Standerd 8", "Standerd 9", "Standerd 10", "Standerd 11", "O Level", "A Level"]
-    age_order_list = [str(i) for i in range(1, 100)] # ১ থেকে ১০০ বছর পর্যন্ত ক্রমানুসারে
+    age_order_list = [str(i) for i in range(1, 100)]
 
     # অন্যান্য কাস্টমার রিপোর্ট
-    render_report_dynamic("Class-wise Distribution", p_df_f, 'Class', 'Total Amount', curr_ords, sort_by='custom', custom_order=class_order_list) 
-    render_report_dynamic("Age-wise Distribution", p_df_f, 'Age', 'Total Amount', curr_ords, sort_by='custom', custom_order=age_order_list) 
-    render_report_dynamic("Guardian Profession", p_df_f, 'Profession', 'Total Amount', curr_ords, sort_by='value')
-    render_report_dynamic("District-wise Revenue", p_df_f, 'District', 'Total Amount', curr_rev, is_currency=True, sort_by='value')
+    # Class এবং Age এ সব ডেটা থাকবে, তাই chart_top_10=False, table_limit_15=False দেওয়া হয়েছে
+    render_report_dynamic("Class-wise Distribution", p_df_f, 'Class', 'Total Amount', curr_ords, chart_top_10=False, table_limit_15=False, custom_order=class_order_list) 
+    render_report_dynamic("Age-wise Distribution", p_df_f, 'Age', 'Total Amount', curr_ords, chart_top_10=False, table_limit_15=False, custom_order=age_order_list) 
+    
+    # Profession এবং District এ চার্ট Top 10, টেবিল 15 (14+Others)
+    render_report_dynamic("Guardian Profession", p_df_f, 'Profession', 'Total Amount', curr_ords, chart_top_10=True, table_limit_15=True)
+    render_report_dynamic("District-wise Revenue", p_df_f, 'District', 'Total Amount', curr_rev, is_currency=True, chart_top_10=True, table_limit_15=True)
 
 except Exception as e:
     st.error(f"Error: {e}")
