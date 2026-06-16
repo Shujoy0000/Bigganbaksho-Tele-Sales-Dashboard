@@ -11,7 +11,7 @@ if not os.path.exists(logo_path): logo_path = "logo.jpg"
 
 st.set_page_config(page_title="Tele Sales Analytics", layout="wide", page_icon="📊")
 
-# ২. কাস্টম CSS (এক লাইনে বড় সামারি এবং প্রফেশনাল ডিজাইন)
+# ২. কাস্টম CSS
 st.markdown("""
     <style>
     html, body, [class*="css"] { 
@@ -57,22 +57,45 @@ def load_data():
         if price_col in df.columns: df[price_col] = pd.to_numeric(df[price_col], errors='coerce').fillna(0).astype(int)
     return df
 
-# সাহায্যকারী ফাংশন: Others এবং Total লজিক
-def process_table_with_others(df, label_col, val_col, total_val, is_currency=False):
+# সাহায্যকারী ফাংশন: টেবিলের ডাইনামিক কলম এবং দশমিক রিমুভ করা
+def process_table_with_others(df, label_col, val_col, total_val, is_currency=False, sort_table_by_value=True):
     if df.empty: return df
-    df = df.sort_values(by=val_col, ascending=False).reset_index(drop=True)
-    if len(df) > 15:
+    
+    if sort_table_by_value:
+        df = df.sort_values(by=val_col, ascending=False).reset_index(drop=True)
+    else:
+        df = df.sort_values(by=label_col, ascending=True).reset_index(drop=True)
+
+    numeric_cols = df.select_dtypes(include='number').columns.tolist()
+
+    if len(df) > 15 and sort_table_by_value:
         top_df = df.head(14).copy()
-        others_val = int(df.iloc[14:][val_col].sum())
-        others_row = pd.DataFrame({label_col: ['Others'], val_col: [others_val]})
+        others_dict = {label_col: 'Others'}
+        for col in numeric_cols:
+            others_dict[col] = df.iloc[14:][col].sum()
+        others_row = pd.DataFrame([others_dict])
         final_df = pd.concat([top_df, others_row], ignore_index=True)
     else:
         final_df = df.copy()
+
     final_df['%'] = (final_df[val_col] / (total_val if total_val > 0 else 1) * 100).map('{:.1f}%'.format)
-    total_row = {label_col: "**Total**", val_col: int(total_val), '%': "100.0%"}
-    final_df = pd.concat([final_df, pd.DataFrame([total_row])], ignore_index=True)
-    if is_currency: final_df[val_col] = final_df[val_col].apply(lambda x: f"৳{int(x):,}" if isinstance(x, (int, float)) else x)
-    else: final_df[val_col] = final_df[val_col].apply(lambda x: f"{int(x):,}" if isinstance(x, (int, float)) else x)
+    
+    total_dict = {label_col: "**Total**", '%': "100.0%"}
+    for col in numeric_cols:
+        if col == val_col:
+            total_dict[col] = int(total_val)
+        else:
+            total_dict[col] = final_df[col].sum()
+            
+    final_df = pd.concat([final_df, pd.DataFrame([total_dict])], ignore_index=True)
+    
+    # সব সংখ্যার কলামকে স্ট্রিং/ইন্টিজারে পরিবর্তন করা যাতে .0000 না আসে
+    for col in numeric_cols:
+        if col == val_col and is_currency:
+            final_df[col] = final_df[col].apply(lambda x: f"৳{int(x):,}" if pd.notna(x) else x)
+        else:
+            final_df[col] = final_df[col].apply(lambda x: f"{int(x):,}" if pd.notna(x) else x)
+            
     return final_df
 
 try:
@@ -82,8 +105,8 @@ try:
     if os.path.exists(logo_path): st.image(logo_path, width=120)
     st.markdown('<div class="main-title">Tele Sales Analytics Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="developer-text">Web App Developed By-Shujoy Shaha</div>', unsafe_allow_html=True)
-    st.markdown('<div class="slogan-text">ম্যানুয়েল কাজের দিন শেষ, বিজ্ঞানবাক্সে বাংলাদেশ</div>', unsafe_allow_html=True)
-    st.markdown('<div class="vision-text">অন্যরকম বাংলাদেশের স্বপ্ন নিয়ে</div>', unsafe_allow_html=True)
+    st.markdown('<div class="slogan-text">ম্যানুয়েল কাজের দিন শেষ, বিজ্ঞানবাক্সে বাংলাদেশ</div>', unsafe_allow_html=True)
+    st.markdown('<div class="vision-text">অন্যরকম বাংলাদেশের স্বপ্ন নিয়ে</div>', unsafe_allow_html=True)
 
     # --- ফিল্টার ---
     st.sidebar.header("📅 Select Date Range")
@@ -103,13 +126,15 @@ try:
     for col, (label, value) in zip([m1, m2, m3, m4, m5, m6], summaries):
         col.markdown(f"<div class='metric-card'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div>", unsafe_allow_html=True)
 
-    # --- ২. এজেন্ট পারফরম্যান্স (সবচেয়ে ছোট উপরে, সবচেয়ে বড় নিচে) ---
+    # --- ২. এজেন্ট পারফরম্যান্স (সবচেয়ে ছোট উপরে, সবচেয়ে বড় নিচে) ---
     st.markdown('<div class="section-header">Agent Performance (Person-wise)</div>', unsafe_allow_html=True)
     agent_data = f_df.groupby('Order Collector').agg(Revenue=('Total Amount', 'sum'), Orders=('Total Amount', 'count'), Qty=('Total Qty', 'sum')).reset_index()
     
     fig_a = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', color_discrete_sequence=['#2E7D32'], text_auto=True)
-    fig_a.update_traces(textfont=dict(size=14, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}')
-    fig_a.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis=dict(tickformat=',d', title="Total Revenue")) # Small on Top
+    # বার চিকন করার জন্য width=0.55 ব্যবহার করা হয়েছে
+    fig_a.update_traces(textfont=dict(size=14, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}', width=0.55)
+    # ছোট থেকে বড় সাজাতে 'total descending' দেওয়া হয়েছে
+    fig_a.update_layout(yaxis={'categoryorder':'total descending'}, xaxis=dict(tickformat=',d', title="Total Revenue")) 
     st.plotly_chart(fig_a, use_container_width=True)
     st.table(process_table_with_others(agent_data, 'Order Collector', 'Revenue', rev, is_currency=True))
 
@@ -119,23 +144,30 @@ try:
     p_df_f = f_df if sel_agent == "All Agents" else f_df[f_df['Order Collector'] == sel_agent]
     curr_rev, curr_qty, curr_ords = p_df_f['Total Amount'].sum(), p_df_f['Total Qty'].sum(), len(p_df_f)
 
-    # ডাইনামিক রিপোর্ট ফাংশন (মাল্টিকালার সিকোয়েন্স সহ)
-    def render_report_dynamic(title, df_in, group_col, val_col, grand_total, is_currency=False):
+    # ডাইনামিক রিপোর্ট ফাংশন (মাল্টিকালার ও কাস্টম সর্টিং সহ)
+    def render_report_dynamic(title, df_in, group_col, val_col, grand_total, is_currency=False, sort_by='value'):
         st.markdown(f"### {title}")
         if df_in.empty: return
         stats = df_in.groupby(group_col).agg(Value=(val_col, 'sum' if group_col == 'Product' else 'count' if not is_currency else 'sum')).reset_index()
-        stats = stats.sort_values('Value', ascending=True) # ছোট থেকে বড়
         
         c1, c2 = st.columns([2, 1])
         with c1:
-            # color=group_col ব্যবহার করা হয়েছে যাতে ২য় ছবির মতো প্রতি বার আলাদা রঙের হয়
-            fig = px.bar(stats.tail(10), x='Value', y=group_col, orientation='h', color=group_col,
+            if sort_by == 'value':
+                plot_data = stats.sort_values('Value', ascending=False).head(10)
+                cat_order = 'total descending' # ছোট থেকে বড় (গ্রাফে)
+            else:
+                plot_data = stats.sort_values(group_col, ascending=True)
+                cat_order = 'category descending' # নাম অনুযায়ী (যেমন Class 1, Class 2)
+                
+            fig = px.bar(plot_data, x='Value', y=group_col, orientation='h', color=group_col,
                          color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
-            fig.update_traces(textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
-            fig.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis=dict(showticklabels=False, title=""), showlegend=False)
+            # বার চিকন করতে width=0.55 
+            fig.update_traces(textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}', width=0.55)
+            fig.update_layout(yaxis={'categoryorder': cat_order}, xaxis=dict(showticklabels=False, title=""), showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
+            
         with c2:
-            st.table(process_table_with_others(stats, group_col, 'Value', grand_total, is_currency))
+            st.table(process_table_with_others(stats, group_col, 'Value', grand_total, is_currency, sort_table_by_value=(sort_by=='value')))
 
     # ৩. প্রোডাক্ট (colorful)
     all_i = []
@@ -146,13 +178,13 @@ try:
     if all_i:
         p_data = pd.concat(all_i)
         p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "")]
-        render_report_dynamic("Product Sales Analytics", p_data, 'Product', 'Qty', curr_qty)
+        render_report_dynamic("Product Sales Analytics", p_data, 'Product', 'Qty', curr_qty, sort_by='value')
 
     # ৪. অন্যান্য কাস্টমার রিপোর্ট
-    render_report_dynamic("Class-wise Distribution", p_df_f, 'Class', 'Total Amount', curr_ords)
-    render_report_dynamic("Age-wise Distribution", p_df_f, 'Age', 'Total Amount', curr_ords)
-    render_report_dynamic("Guardian Profession", p_df_f, 'Profession', 'Total Amount', curr_ords)
-    render_report_dynamic("District-wise Revenue", p_df_f, 'District', 'Total Amount', curr_rev, is_currency=True)
+    render_report_dynamic("Class-wise Distribution", p_df_f, 'Class', 'Total Amount', curr_ords, sort_by='category') # ভ্যালুর উপর সর্ট হবে না
+    render_report_dynamic("Age-wise Distribution", p_df_f, 'Age', 'Total Amount', curr_ords, sort_by='category') # ভ্যালুর উপর সর্ট হবে না
+    render_report_dynamic("Guardian Profession", p_df_f, 'Profession', 'Total Amount', curr_ords, sort_by='value')
+    render_report_dynamic("District-wise Revenue", p_df_f, 'District', 'Total Amount', curr_rev, is_currency=True, sort_by='value')
 
 except Exception as e:
     st.error(f"Error: {e}")
