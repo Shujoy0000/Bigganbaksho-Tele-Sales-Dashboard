@@ -80,11 +80,15 @@ def load_data():
         if price_col in df.columns: df[price_col] = pd.to_numeric(df[price_col], errors='coerce').fillna(0).astype(int)
     return df
 
-# সাহায্যকারী ফাংশন: টেবিল প্রসেসিং (১৫টির লিমিট সহ)
+# সাহায্যকারী ফাংশন: টেবিল প্রসেসিং এবং দশমিক ফিক্স
 def process_table_data(df, label_col, val_col, total_val, is_currency=False, limit_15=True):
     if df.empty: return df
     df = df.copy()
+    
+    # শুধু সংখ্যার কলামগুলো নেওয়া হচ্ছে
     numeric_cols = df.select_dtypes(include='number').columns.tolist()
+    if label_col in numeric_cols:
+        numeric_cols.remove(label_col)
 
     if limit_15 and len(df) > 15:
         top_df = df.head(14).copy()
@@ -101,17 +105,18 @@ def process_table_data(df, label_col, val_col, total_val, is_currency=False, lim
     total_dict = {label_col: "**Total**", '%': "100.0%"}
     for col in numeric_cols:
         if col == val_col:
-            total_dict[col] = int(total_val)
+            total_dict[col] = total_val
         else:
             total_dict[col] = final_df[col].sum()
             
     final_df = pd.concat([final_df, pd.DataFrame([total_dict])], ignore_index=True)
     
+    # দশমিক রিমুভ করার নিশ্চিত লজিক
     for col in numeric_cols:
         if col == val_col and is_currency:
-            final_df[col] = final_df[col].apply(lambda x: f"৳{int(x):,}" if pd.notna(x) else x)
+            final_df[col] = final_df[col].apply(lambda x: f"৳{int(float(x)):,}" if pd.notna(x) else "")
         else:
-            final_df[col] = final_df[col].apply(lambda x: f"{int(x):,}" if pd.notna(x) else x)
+            final_df[col] = final_df[col].apply(lambda x: f"{int(float(x)):,}" if pd.notna(x) else "")
             
     return final_df
 
@@ -151,9 +156,15 @@ try:
     fig_a = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', color='Order Collector', color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
     fig_a.update_traces(textfont=dict(size=14, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}')
     
-    # বারের থিকনেস ফিক্সড করার জন্য নতুন লজিক
-    agent_fig_height = max(120, len(agent_data) * 45 + 70)
-    fig_a.update_layout(height=agent_fig_height, yaxis={'categoryorder': 'array', 'categoryarray': agent_data['Order Collector'].tolist()}, xaxis=dict(tickformat=',d', title="Total Revenue"), showlegend=False) 
+    # বারের থিকনেস ফিক্সড করার জন্য হাইট এবং মার্জিন কন্ট্রোল
+    agent_fig_height = len(agent_data) * 45 + 70
+    fig_a.update_layout(
+        height=agent_fig_height, 
+        margin=dict(t=20, b=40, l=10, r=80), # মার্জিন ফিক্সড করে দেওয়া হয়েছে
+        yaxis={'categoryorder': 'array', 'categoryarray': agent_data['Order Collector'].tolist()}, 
+        xaxis=dict(tickformat=',d', title="Total Revenue"), 
+        showlegend=False
+    ) 
     
     st.plotly_chart(fig_a, use_container_width=True)
     st.table(process_table_data(agent_data, 'Order Collector', 'Revenue', rev, is_currency=True, limit_15=False))
@@ -188,9 +199,15 @@ try:
                          color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
             fig.update_traces(textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
             
-            # বারের থিকনেস ফিক্সড করার জন্য নতুন লজিক
-            dynamic_height = max(120, len(plot_data) * 45 + 70)
-            fig.update_layout(height=dynamic_height, yaxis={'type': 'category', 'categoryorder': 'array', 'categoryarray': cat_array}, xaxis=dict(showticklabels=False, title=""), showlegend=False)
+            # বারের থিকনেস ফিক্সড করার জন্য হাইট এবং মার্জিন কন্ট্রোল
+            dynamic_height = len(plot_data) * 45 + 50
+            fig.update_layout(
+                height=dynamic_height, 
+                margin=dict(t=20, b=20, l=10, r=80), # মার্জিন ফিক্সড করে দেওয়া হয়েছে
+                yaxis={'type': 'category', 'categoryorder': 'array', 'categoryarray': cat_array}, 
+                xaxis=dict(showticklabels=False, title=""), 
+                showlegend=False
+            )
             st.plotly_chart(fig, use_container_width=True)
             
         with c2:
