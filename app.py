@@ -41,15 +41,15 @@ st.markdown("""
     }
 
     .metric-content {
-        transform: scale(1.35);
+        transform: scale(1.42);
         transform-origin: center;
         width: 100%;
     }
 
     .metric-label { 
-        font-size: 22px; 
-        color: #444; 
-        margin: 0 0 8px 0; 
+        font-size: 23px; 
+        color: #444444; 
+        margin: 0 0 9px 0; 
         font-weight: 900; 
         text-transform: uppercase; 
         white-space: nowrap; 
@@ -57,9 +57,9 @@ st.markdown("""
     }
 
     .metric-value { 
-        font-size: 40px; 
-        color: #000; 
-        font-weight: 950; 
+        font-size: 43px; 
+        color: #242424; 
+        font-weight: 900; 
         margin: 0; 
         line-height: 1; 
         white-space: nowrap; 
