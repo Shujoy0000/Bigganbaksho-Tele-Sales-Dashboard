@@ -26,33 +26,44 @@ st.markdown("""
     
     .metric-card { 
         background: #FFFFFF; 
-        padding: 20px 5px; 
+        padding: 0px 4px; 
         border-radius: 12px; 
         box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
         text-align: center; 
         border-top: 8px solid #FF6600; 
         margin-bottom: 10px;
         display: flex; 
-        flex-direction: column; 
+        align-items: center;
         justify-content: center;
+        height: 140px;
         min-height: 140px; 
         overflow: hidden; 
     }
+
+    .metric-content {
+        transform: scale(1.35);
+        transform-origin: center;
+        width: 100%;
+    }
+
     .metric-label { 
-        font-size: 20px; 
-        color: #555; 
-        margin-bottom: 5px; 
-        font-weight: 800; 
+        font-size: 22px; 
+        color: #444; 
+        margin: 0 0 8px 0; 
+        font-weight: 900; 
         text-transform: uppercase; 
         white-space: nowrap; 
+        line-height: 1;
     }
+
     .metric-value { 
-        font-size: 42px; 
+        font-size: 40px; 
         color: #000; 
-        font-weight: 900; 
+        font-weight: 950; 
         margin: 0; 
-        line-height: 1.1; 
+        line-height: 1; 
         white-space: nowrap; 
+        letter-spacing: -1px;
     }
 
     .section-header { 
@@ -144,9 +155,20 @@ try:
     dis_p = (dis/rev*100) if rev > 0 else 0
 
     m1, m2, m3, m4, m5, m6 = st.columns(6)
-    summaries = [("Revenue", f"৳{rev:,}"), ("Orders", f"{ords:,}"), ("AOV", f"৳{aov:,}"), ("Product Qty", f"{qty:,}"), ("Discount", f"৳{dis:,}"), ("Discount %", f"{dis_p:.1f}%")]
+    summaries = [
+        ("Revenue", f"৳{rev:,}"),
+        ("Orders", f"{ords:,}"),
+        ("AOV", f"৳{aov:,}"),
+        ("Product Qty", f"{qty:,}"),
+        ("Discount", f"৳{dis:,}"),
+        ("Discount %", f"{dis_p:.1f}%")
+    ]
+
     for col, (label, value) in zip([m1, m2, m3, m4, m5, m6], summaries):
-        col.markdown(f"<div class='metric-card'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div>", unsafe_allow_html=True)
+        col.markdown(
+            f"<div class='metric-card'><div class='metric-content'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div></div>",
+            unsafe_allow_html=True
+        )
 
     # --- ২. এজেন্ট পারফরম্যান্স ---
     st.markdown('<div class="section-header">Agent Performance (Person-wise)</div>', unsafe_allow_html=True)
@@ -160,7 +182,7 @@ try:
     agent_fig_height = len(agent_data) * 45 + 70
     fig_a.update_layout(
         height=agent_fig_height, 
-        margin=dict(t=20, b=40, l=10, r=80), # মার্জিন ফিক্সড করে দেওয়া হয়েছে
+        margin=dict(t=20, b=40, l=10, r=80),
         yaxis={'categoryorder': 'array', 'categoryarray': agent_data['Order Collector'].tolist()}, 
         xaxis=dict(tickformat=',d', title="Total Revenue"), 
         showlegend=False
@@ -203,7 +225,7 @@ try:
             dynamic_height = len(plot_data) * 45 + 50
             fig.update_layout(
                 height=dynamic_height, 
-                margin=dict(t=20, b=20, l=10, r=80), # মার্জিন ফিক্সড করে দেওয়া হয়েছে
+                margin=dict(t=20, b=20, l=10, r=80),
                 yaxis={'type': 'category', 'categoryorder': 'array', 'categoryarray': cat_array}, 
                 xaxis=dict(showticklabels=False, title=""), 
                 showlegend=False
