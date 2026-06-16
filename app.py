@@ -2,8 +2,11 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import streamlit.components.v1 as components
 import os
 import datetime
+import json
+import re
 
 # ১. পেজ সেটিংস ও লোগো
 logo_path = "logo.png"
@@ -106,12 +109,113 @@ st.markdown("""
         font-weight: 700;
     }
 
-    .stTable { 
-        color: #333333 !important; 
-        font-weight: 600 !important; 
+    .copy-note {
+        font-size: 13px;
+        color: #666;
+        margin-top: -4px;
+        margin-bottom: 6px;
+    }
+
+    .stDataFrame {
+        font-weight: 600 !important;
+    }
+
+    /* সব table header bold করার জন্য */
+    [data-testid="stDataFrame"] div[role="columnheader"],
+    [data-testid="stDataFrame"] div[role="columnheader"] * {
+        font-weight: 900 !important;
+        color: #000000 !important;
     }
     </style>
     """, unsafe_allow_html=True)
+
+
+# Copyable table helper
+def clean_key(text):
+    text = str(text).lower()
+    text = re.sub(r'[^a-z0-9]+', '_', text)
+    return text.strip('_')
+
+
+def show_copyable_table(df_display, key_name):
+    if df_display.empty:
+        st.info("No data found.")
+        return
+
+    table_height = min(600, max(180, 38 * (len(df_display) + 1)))
+
+    st.markdown(
+        '<div class="copy-note">Table থেকে cell, column বা multiple column select করে copy করা যাবে। নিচের button দিয়ে full table copy হবে।</div>',
+        unsafe_allow_html=True
+    )
+
+    # Total row পুরোটা bold করার জন্য
+    def bold_total_row(row):
+        first_cell = str(row.iloc[0]).replace("*", "").strip().lower()
+
+        if first_cell == "total":
+            return [
+                "font-weight: 900; color: #000000;"
+                for _ in row
+            ]
+
+        return ["" for _ in row]
+
+    styled_df = (
+        df_display.style
+        .apply(bold_total_row, axis=1)
+        .set_table_styles([
+            {
+                "selector": "th",
+                "props": [
+                    ("font-weight", "900"),
+                    ("color", "#000000")
+                ]
+            }
+        ])
+    )
+
+    st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        height=table_height
+    )
+
+    table_text = df_display.to_csv(sep="\t", index=False)
+    table_json = json.dumps(table_text, ensure_ascii=False)
+    button_id = f"copy_btn_{clean_key(key_name)}"
+
+    components.html(f"""
+        <button id="{button_id}" style="
+            background:#FF6600;
+            color:white;
+            border:none;
+            border-radius:7px;
+            padding:8px 14px;
+            font-weight:700;
+            cursor:pointer;
+            font-size:14px;
+            margin-top:4px;
+        ">📋 Copy full table</button>
+
+        <script>
+        const btn = document.getElementById("{button_id}");
+        const tableText = {table_json};
+
+        btn.onclick = async function() {{
+            try {{
+                await navigator.clipboard.writeText(tableText);
+                btn.innerText = "✅ Copied!";
+                setTimeout(() => btn.innerText = "📋 Copy full table", 1300);
+            }} catch (err) {{
+                btn.innerText = "Copy failed";
+                setTimeout(() => btn.innerText = "📋 Copy full table", 1300);
+            }}
+        }};
+        </script>
+    """, height=48)
+
 
 # ৩. ডাটা লোডিং
 @st.cache_data(ttl=300)
@@ -157,6 +261,7 @@ def load_data():
 
     return df
 
+
 # সাহায্যকারী ফাংশন: টেবিল প্রসেসিং এবং দশমিক ফিক্স
 def process_table_data(df, label_col, val_col, total_val, is_currency=False, limit_15=True):
     if df.empty:
@@ -180,7 +285,7 @@ def process_table_data(df, label_col, val_col, total_val, is_currency=False, lim
 
     final_df['%'] = (final_df[val_col] / (total_val if total_val > 0 else 1) * 100).map('{:.1f}%'.format)
 
-    total_dict = {label_col: "**Total**", '%': "100.0%"}
+    total_dict = {label_col: "Total", '%': "100.0%"}
     for col in numeric_cols:
         if col == val_col:
             total_dict[col] = total_val
@@ -196,6 +301,7 @@ def process_table_data(df, label_col, val_col, total_val, is_currency=False, lim
             final_df[col] = final_df[col].apply(lambda x: f"{int(float(x)):,}" if pd.notna(x) else "")
 
     return final_df
+
 
 try:
     df = load_data()
@@ -283,12 +389,26 @@ try:
     )
 
     st.plotly_chart(fig_a, use_container_width=True)
-    st.table(process_table_data(agent_data, 'Order Collector', 'Revenue', revenue, is_currency=True, limit_15=False))
+
+    agent_table = process_table_data(
+        agent_data,
+        'Order Collector',
+        'Revenue',
+        revenue,
+        is_currency=True,
+        limit_15=False
+    )
+
+    show_copyable_table(agent_table, "agent_performance_table")
 
     # --- ৩. বিস্তারিত অ্যানালিটিক্স ড্রপডাউন ---
     st.markdown('<div class="section-header">Detailed Category Analytics</div>', unsafe_allow_html=True)
 
-    sel_agent = st.selectbox("Filter Reports by Agent:", ["All Agents"] + sorted(list(f_df['Order Collector'].dropna().unique())))
+    sel_agent = st.selectbox(
+        "Filter Reports by Agent:",
+        ["All Agents"] + sorted(list(f_df['Order Collector'].dropna().unique()))
+    )
+
     p_df_f = f_df if sel_agent == "All Agents" else f_df[f_df['Order Collector'] == sel_agent]
 
     curr_revenue = p_df_f['Revenue'].sum()
@@ -354,7 +474,16 @@ try:
             st.plotly_chart(fig, use_container_width=True)
 
         with c2:
-            st.table(process_table_data(stats, group_col, 'Value', grand_total, is_currency, limit_15=table_limit_15))
+            table_df = process_table_data(
+                stats,
+                group_col,
+                'Value',
+                grand_total,
+                is_currency,
+                limit_15=table_limit_15
+            )
+
+            show_copyable_table(table_df, title)
 
     # ৩. প্রোডাক্ট
     all_i = []
@@ -370,8 +499,13 @@ try:
     if all_i:
         p_data = pd.concat(all_i)
         p_data['Product'] = p_data['Product'].astype(str).str.strip()
-        p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "") & (p_data['Product'] != "nan")]
+        p_data = p_data[
+            (p_data['Product'] != "0") &
+            (p_data['Product'] != "") &
+            (p_data['Product'] != "nan")
+        ]
 
+        # Product chart Top 10, table full
         render_report_dynamic(
             "Product Sales Analytics",
             p_data,
@@ -379,10 +513,10 @@ try:
             'Qty',
             curr_qty,
             chart_top_10=True,
-            table_limit_15=True
+            table_limit_15=False
         )
 
-    # অন্যান্য কাস্টমার রিপোর্ট
+    # অন্যান্য কাস্টমার রিপোর্ট: chart Top 10, table full
     render_report_dynamic(
         "Class-wise Distribution",
         p_df_f,
@@ -390,7 +524,7 @@ try:
         'Revenue',
         curr_ords,
         chart_top_10=True,
-        table_limit_15=True
+        table_limit_15=False
     )
 
     render_report_dynamic(
@@ -400,7 +534,7 @@ try:
         'Revenue',
         curr_ords,
         chart_top_10=True,
-        table_limit_15=True
+        table_limit_15=False
     )
 
     render_report_dynamic(
@@ -410,7 +544,7 @@ try:
         'Revenue',
         curr_ords,
         chart_top_10=True,
-        table_limit_15=True
+        table_limit_15=False
     )
 
     render_report_dynamic(
@@ -421,7 +555,7 @@ try:
         curr_revenue,
         is_currency=True,
         chart_top_10=True,
-        table_limit_15=True
+        table_limit_15=False
     )
 
 except Exception as e:
