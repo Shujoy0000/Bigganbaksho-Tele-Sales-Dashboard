@@ -115,17 +115,6 @@ st.markdown("""
         margin-top: -4px;
         margin-bottom: 6px;
     }
-
-    .stDataFrame {
-        font-weight: 600 !important;
-    }
-
-    /* সব table header bold করার জন্য */
-    [data-testid="stDataFrame"] div[role="columnheader"],
-    [data-testid="stDataFrame"] div[role="columnheader"] * {
-        font-weight: 900 !important;
-        color: #000000 !important;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -145,62 +134,82 @@ def show_copyable_table(df_display, key_name):
     table_height = min(600, max(180, 38 * (len(df_display) + 1)))
 
     st.markdown(
-        '<div class="copy-note">Table থেকে cell, column বা multiple column select করে copy করা যাবে। নিচের button দিয়ে full table copy হবে।</div>',
+        '<div class="copy-note">Table থেকে cell, row বা full table copy করা যাবে। নিচের button দিয়ে full table copy হবে।</div>',
         unsafe_allow_html=True
     )
 
-    # Total row পুরোটা bold করার জন্য
-    def bold_total_row(row):
-        first_cell = str(row.iloc[0]).replace("*", "").strip().lower()
-
-        if first_cell == "total":
-            return [
-                "font-weight: 900; color: #000000;"
-                for _ in row
-            ]
-
-        return ["" for _ in row]
-
-    styled_df = (
-        df_display.style
-        .apply(bold_total_row, axis=1)
-        .set_table_styles([
-            {
-                "selector": "th",
-                "props": [
-                    ("font-weight", "900"),
-                    ("color", "#000000")
-                ]
-            }
-        ])
-    )
-
-    st.dataframe(
-        styled_df,
-        use_container_width=True,
-        hide_index=True,
-        height=table_height
-    )
-
+    safe_key = clean_key(key_name)
     table_text = df_display.to_csv(sep="\t", index=False)
     table_json = json.dumps(table_text, ensure_ascii=False)
-    button_id = f"copy_btn_{clean_key(key_name)}"
+
+    html_table = df_display.to_html(index=False, escape=False)
 
     components.html(f"""
-        <button id="{button_id}" style="
-            background:#FF6600;
-            color:white;
-            border:none;
-            border-radius:7px;
-            padding:8px 14px;
-            font-weight:700;
-            cursor:pointer;
-            font-size:14px;
-            margin-top:4px;
-        ">📋 Copy full table</button>
+        <style>
+            .table-wrap-{safe_key} {{
+                max-height: {table_height}px;
+                overflow: auto;
+                border: 1px solid #E0E0E0;
+                border-radius: 8px;
+                background: white;
+                margin-bottom: 8px;
+            }}
+
+            .table-wrap-{safe_key} table {{
+                width: 100%;
+                border-collapse: collapse;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 14px;
+                color: #111827;
+            }}
+
+            .table-wrap-{safe_key} thead th {{
+                font-weight: 900 !important;
+                color: #000000 !important;
+                background: #F8F9FB;
+                border: 1px solid #E0E0E0;
+                padding: 9px 10px;
+                text-align: left;
+                position: sticky;
+                top: 0;
+                z-index: 2;
+            }}
+
+            .table-wrap-{safe_key} tbody td {{
+                border: 1px solid #E8E8E8;
+                padding: 8px 10px;
+                text-align: left;
+                white-space: nowrap;
+            }}
+
+            .table-wrap-{safe_key} tbody tr:last-child td {{
+                font-weight: 900 !important;
+                color: #000000 !important;
+            }}
+
+            .copy-btn-{safe_key} {{
+                background: #FF6600;
+                color: white;
+                border: none;
+                border-radius: 7px;
+                padding: 8px 14px;
+                font-weight: 700;
+                cursor: pointer;
+                font-size: 14px;
+                margin-top: 4px;
+            }}
+        </style>
+
+        <div class="table-wrap-{safe_key}">
+            {html_table}
+        </div>
+
+        <button class="copy-btn-{safe_key}" id="copy_btn_{safe_key}">
+            📋 Copy full table
+        </button>
 
         <script>
-        const btn = document.getElementById("{button_id}");
+        const btn = document.getElementById("copy_btn_{safe_key}");
         const tableText = {table_json};
 
         btn.onclick = async function() {{
@@ -214,7 +223,7 @@ def show_copyable_table(df_display, key_name):
             }}
         }};
         </script>
-    """, height=48)
+    """, height=table_height + 70)
 
 
 # ৩. ডাটা লোডিং
