@@ -54,7 +54,7 @@ st.markdown("""
     
     .metric-card { 
         background: #FFFFFF; 
-        padding: 0px 3px; 
+        padding: 0px 2px; 
         border-radius: 12px; 
         box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
         text-align: center; 
@@ -63,21 +63,21 @@ st.markdown("""
         display: flex; 
         align-items: center;
         justify-content: center;
-        height: 138px;
-        min-height: 138px; 
+        height: 152px;
+        min-height: 152px; 
         overflow: hidden; 
     }
 
     .metric-content {
-        transform: scale(1.18);
+        transform: scale(1.42);
         transform-origin: center;
         width: 100%;
     }
 
     .metric-label { 
-        font-size: 18px; 
+        font-size: 20px; 
         color: #444444; 
-        margin: 0 0 8px 0; 
+        margin: 0 0 10px 0; 
         font-weight: 900; 
         text-transform: uppercase; 
         white-space: nowrap; 
@@ -85,7 +85,7 @@ st.markdown("""
     }
 
     .metric-value { 
-        font-size: 34px; 
+        font-size: 40px; 
         color: #2b2b2b; 
         font-weight: 900; 
         margin: 0; 
