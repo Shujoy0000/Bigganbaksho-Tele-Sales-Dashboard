@@ -239,7 +239,15 @@ def load_data():
     df = df.dropna(subset=['Order Date'])
 
     # প্রয়োজনীয় numeric column
-    needed_numeric_cols = ['Total Amount', 'Shipping Charge', 'Discount', 'Total Qty', 'Product Price']
+    needed_numeric_cols = [
+        'Total Amount',
+        'Shipping Charge',
+        'Discount',
+        'Total Qty',
+        'Discount per product',
+        'Product Price'
+    ]
+
     for col in needed_numeric_cols:
         if col not in df.columns:
             df[col] = 0
@@ -267,6 +275,11 @@ def load_data():
     df['Total Sales'] = df['Revenue'] + df['Discount']
     df['Total Sales'] = pd.to_numeric(df['Total Sales'], errors='coerce').fillna(0).astype(int)
     df['Total Sales'] = df['Total Sales'].clip(lower=0)
+
+    # Product-wise Sales Price calculation-এর জন্য Unit Discount
+    exact_unit_discount = df['Discount'] / df['Total Qty'].where(df['Total Qty'] > 0)
+    df['Unit Discount'] = exact_unit_discount.fillna(df['Discount per product']).fillna(0)
+    df['Unit Discount'] = df['Unit Discount'].clip(lower=0)
 
     return df
 
@@ -310,6 +323,131 @@ def process_table_data(df, label_col, val_col, total_val, is_currency=False, lim
             final_df[col] = final_df[col].apply(lambda x: f"{int(float(x)):,}" if pd.notna(x) else "")
 
     return final_df
+
+
+# Product table-এর জন্য Sales Price সহ আলাদা data তৈরি
+def build_product_long_data(df_in):
+    all_items = []
+
+    for i in range(1, 16):
+        name_col = f'Product Name-{i}'
+        price_col = f'Product Price-{i}'
+        qty_col = f'Product QTY-{i}'
+
+        if name_col in df_in.columns and qty_col in df_in.columns and price_col in df_in.columns:
+            temp = df_in[[name_col, price_col, qty_col, 'Unit Discount']].copy()
+            temp = temp.rename(columns={
+                name_col: 'Product',
+                price_col: 'Unit Price',
+                qty_col: 'Qty'
+            })
+
+            temp['Product'] = temp['Product'].astype(str).str.strip()
+            temp['Qty'] = pd.to_numeric(temp['Qty'], errors='coerce').fillna(0)
+            temp['Unit Price'] = pd.to_numeric(temp['Unit Price'], errors='coerce').fillna(0)
+            temp['Unit Discount'] = pd.to_numeric(temp['Unit Discount'], errors='coerce').fillna(0)
+
+            temp = temp[
+                (temp['Product'] != "0") &
+                (temp['Product'] != "") &
+                (temp['Product'] != "nan") &
+                (temp['Qty'] > 0)
+            ]
+
+            # Sales Price = (Product Price - Discount per product) * Product QTY
+            temp['Sales Price'] = (temp['Unit Price'] - temp['Unit Discount']).clip(lower=0) * temp['Qty']
+
+            all_items.append(temp[['Product', 'Qty', 'Sales Price']])
+
+    if all_items:
+        return pd.concat(all_items, ignore_index=True)
+
+    return pd.DataFrame(columns=['Product', 'Qty', 'Sales Price'])
+
+
+def render_product_report(df_in):
+    st.markdown("### Product Sales Analytics")
+
+    product_long = build_product_long_data(df_in)
+
+    if product_long.empty:
+        st.info("No product data found.")
+        return
+
+    product_stats = product_long.groupby('Product').agg(
+        Value=('Qty', 'sum'),
+        Sales_Price=('Sales Price', 'sum')
+    ).reset_index()
+
+    product_stats['Value'] = product_stats['Value'].round().astype(int)
+    product_stats['Sales_Price'] = product_stats['Sales_Price'].round().astype(int)
+
+    product_stats = product_stats.sort_values('Value', ascending=False)
+
+    total_product_qty = int(product_stats['Value'].sum())
+    total_product_sales = int(product_stats['Sales_Price'].sum())
+
+    product_stats['%'] = (
+        product_stats['Sales_Price'] / (total_product_sales if total_product_sales > 0 else 1) * 100
+    )
+
+    c1, c2 = st.columns([2, 1])
+
+    with c1:
+        plot_data = product_stats.head(10).copy()
+
+        fig = px.bar(
+            plot_data,
+            x='Value',
+            y='Product',
+            orientation='h',
+            color='Product',
+            color_discrete_sequence=px.colors.qualitative.Vivid,
+            text_auto=True
+        )
+
+        fig.update_traces(
+            textangle=0,
+            textposition='outside',
+            texttemplate='%{x:,}'
+        )
+
+        dynamic_height = len(plot_data) * 45 + 50
+        fig.update_layout(
+            height=dynamic_height,
+            margin=dict(t=20, b=20, l=10, r=80),
+            yaxis={
+                'type': 'category',
+                'categoryorder': 'array',
+                'categoryarray': plot_data['Product'].tolist()
+            },
+            xaxis=dict(showticklabels=False, title=""),
+            showlegend=False
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    with c2:
+        product_table = product_stats.copy()
+        product_table = product_table.rename(columns={'Sales_Price': 'Sales Price'})
+
+        product_table['Sales Price'] = product_table['Sales Price'].apply(lambda x: f"৳{int(x):,}")
+        product_table['%'] = product_table['%'].map('{:.1f}%'.format)
+        product_table['Value'] = product_table['Value'].apply(lambda x: f"{int(x):,}")
+
+        total_row = pd.DataFrame([{
+            'Product': 'Total',
+            'Value': f"{total_product_qty:,}",
+            'Sales Price': f"৳{total_product_sales:,}",
+            '%': "100.0%"
+        }])
+
+        product_table = pd.concat([product_table, total_row], ignore_index=True)
+
+        show_copyable_table(
+            product_table[['Product', 'Value', 'Sales Price', '%']],
+            "product_sales_table"
+        )
 
 
 try:
@@ -421,7 +559,6 @@ try:
     p_df_f = f_df if sel_agent == "All Agents" else f_df[f_df['Order Collector'] == sel_agent]
 
     curr_revenue = p_df_f['Revenue'].sum()
-    curr_qty = p_df_f['Total Qty'].sum()
     curr_ords = len(p_df_f)
 
     # ডাইনামিক রিপোর্ট ফাংশন
@@ -494,36 +631,8 @@ try:
 
             show_copyable_table(table_df, title)
 
-    # ৩. প্রোডাক্ট
-    all_i = []
-    for i in range(1, 16):
-        name_col = f'Product Name-{i}'
-        qty_col = f'Product QTY-{i}'
-
-        if name_col in p_df_f.columns and qty_col in p_df_f.columns:
-            temp = p_df_f[[name_col, qty_col]].copy().dropna()
-            temp = temp.rename(columns={name_col: 'Product', qty_col: 'Qty'})
-            all_i.append(temp)
-
-    if all_i:
-        p_data = pd.concat(all_i)
-        p_data['Product'] = p_data['Product'].astype(str).str.strip()
-        p_data = p_data[
-            (p_data['Product'] != "0") &
-            (p_data['Product'] != "") &
-            (p_data['Product'] != "nan")
-        ]
-
-        # Product chart Top 10, table full
-        render_report_dynamic(
-            "Product Sales Analytics",
-            p_data,
-            'Product',
-            'Qty',
-            curr_qty,
-            chart_top_10=True,
-            table_limit_15=False
-        )
+    # ৩. প্রোডাক্ট: chart Top 10, table full with Sales Price
+    render_product_report(p_df_f)
 
     # অন্যান্য কাস্টমার রিপোর্ট: chart Top 10, table full
     render_report_dynamic(
