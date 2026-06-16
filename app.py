@@ -86,7 +86,6 @@ def process_table_data(df, label_col, val_col, total_val, is_currency=False, lim
     df = df.copy()
     numeric_cols = df.select_dtypes(include='number').columns.tolist()
 
-    # Top 14 + Others লজিক (টেবিলের জন্য)
     if limit_15 and len(df) > 15:
         top_df = df.head(14).copy()
         others_dict = {label_col: 'Others'}
@@ -144,7 +143,7 @@ try:
     for col, (label, value) in zip([m1, m2, m3, m4, m5, m6], summaries):
         col.markdown(f"<div class='metric-card'><p class='metric-label'>{label}</p><p class='metric-value'>{value}</p></div>", unsafe_allow_html=True)
 
-    # --- ২. এজেন্ট পারফরম্যান্স (সবগুলো থাকবে, কোনো Others বা Top 10 নেই) ---
+    # --- ২. এজেন্ট পারফরম্যান্স ---
     st.markdown('<div class="section-header">Agent Performance (Person-wise)</div>', unsafe_allow_html=True)
     agent_data = f_df.groupby('Order Collector').agg(Revenue=('Total Amount', 'sum'), Orders=('Total Amount', 'count'), Qty=('Total Qty', 'sum')).reset_index()
     agent_data = agent_data.sort_values('Revenue', ascending=False)
@@ -152,7 +151,8 @@ try:
     fig_a = px.bar(agent_data, x='Revenue', y='Order Collector', orientation='h', color='Order Collector', color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
     fig_a.update_traces(textfont=dict(size=14, color='black'), textangle=0, textposition='outside', texttemplate='৳%{x:,}')
     
-    agent_fig_height = max(250, len(agent_data) * 45 + 80)
+    # বারের থিকনেস ফিক্সড করার জন্য নতুন লজিক
+    agent_fig_height = max(120, len(agent_data) * 45 + 70)
     fig_a.update_layout(height=agent_fig_height, yaxis={'categoryorder': 'array', 'categoryarray': agent_data['Order Collector'].tolist()}, xaxis=dict(tickformat=',d', title="Total Revenue"), showlegend=False) 
     
     st.plotly_chart(fig_a, use_container_width=True)
@@ -164,24 +164,21 @@ try:
     p_df_f = f_df if sel_agent == "All Agents" else f_df[f_df['Order Collector'] == sel_agent]
     curr_rev, curr_qty, curr_ords = p_df_f['Total Amount'].sum(), p_df_f['Total Qty'].sum(), len(p_df_f)
 
-    # ডাইনামিক রিপোর্ট ফাংশন (Top 10 চার্ট এবং Top 15 টেবিলের জন্য)
+    # ডাইনামিক রিপোর্ট ফাংশন 
     def render_report_dynamic(title, df_in, group_col, val_col, grand_total, is_currency=False, chart_top_10=True, table_limit_15=True):
         st.markdown(f"### {title}")
         if df_in.empty: return
         
         df_work = df_in.copy()
-        # দশমিক রিমুভ করা হচ্ছে যাতে দেখতে সুন্দর লাগে
         df_work[group_col] = df_work[group_col].astype(str).str.replace(r'\.0$', '', regex=True)
             
         stats = df_work.groupby(group_col).agg(Value=(val_col, 'sum' if group_col == 'Product' else 'count' if not is_currency else 'sum')).reset_index()
         
-        # ভ্যালুর ওপর ভিত্তি করে বড় থেকে ছোট সাজানো
         stats = stats.sort_values('Value', ascending=False)
-        cat_array = stats[group_col].tolist() # সবচেয়ে বড় ভ্যালু নিচে থাকবে
+        cat_array = stats[group_col].tolist() 
             
         c1, c2 = st.columns([2, 1])
         with c1:
-            # চার্টে Top 10 লজিক (Others ছাড়া)
             if chart_top_10:
                 plot_data = stats.head(10).copy()
             else:
@@ -191,7 +188,8 @@ try:
                          color_discrete_sequence=px.colors.qualitative.Vivid, text_auto=True)
             fig.update_traces(textangle=0, textposition='outside', texttemplate='৳%{x:,}' if is_currency else '%{x:,}')
             
-            dynamic_height = max(250, len(plot_data) * 45 + 80)
+            # বারের থিকনেস ফিক্সড করার জন্য নতুন লজিক
+            dynamic_height = max(120, len(plot_data) * 45 + 70)
             fig.update_layout(height=dynamic_height, yaxis={'type': 'category', 'categoryorder': 'array', 'categoryarray': cat_array}, xaxis=dict(showticklabels=False, title=""), showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
             
@@ -209,7 +207,7 @@ try:
         p_data = p_data[(p_data['Product'] != "0") & (p_data['Product'] != "")]
         render_report_dynamic("Product Sales Analytics", p_data, 'Product', 'Qty', curr_qty, chart_top_10=True, table_limit_15=True)
 
-    # অন্যান্য কাস্টমার রিপোর্ট (সবগুলোর চার্টে Top 10 এবং টেবিলে 15 টি থাকবে)
+    # অন্যান্য কাস্টমার রিপোর্ট
     render_report_dynamic("Class-wise Distribution", p_df_f, 'Class', 'Total Amount', curr_ords, chart_top_10=True, table_limit_15=True) 
     render_report_dynamic("Age-wise Distribution", p_df_f, 'Age', 'Total Amount', curr_ords, chart_top_10=True, table_limit_15=True) 
     render_report_dynamic("Guardian Profession", p_df_f, 'Profession', 'Total Amount', curr_ords, chart_top_10=True, table_limit_15=True)
